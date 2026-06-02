@@ -12,7 +12,9 @@ import {
   ChevronRight, 
   Crown, 
   User as UserIcon,
-  Heart
+  Heart,
+  Calendar,
+  Zap
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -21,7 +23,7 @@ export default function ProfilePage() {
   const { user, logout } = useAuthStore() as any;
   const { clearSession } = useChatStore() as any;
 
-  const isFreeTier = false; // Dibuka semua
+  const isFreeTier = user?.tier === 'Free' || !user?.tier;
 
   const handleLogout = () => {
     // Simulasi proses logout
@@ -41,9 +43,9 @@ export default function ProfilePage() {
 
   const settingsMenu = [
     { icon: UserIcon, label: 'Edit Profil', color: 'text-blue-500', bg: 'bg-blue-50' },
-    { icon: Bell, label: 'Notifikasi & Pengingat', color: 'text-amber-500', bg: 'bg-amber-50' },
-    { icon: Shield, label: 'Privasi & Keamanan', color: 'text-emerald-500', bg: 'bg-emerald-50' },
-    { icon: Heart, label: 'Preferensi Terapi', color: 'text-rose-500', bg: 'bg-rose-50' },
+    { icon: Bell, label: 'Notifikasi & Pengingat', color: 'text-warning', bg: 'bg-yellow-50' },
+    { icon: Shield, label: 'Privasi & Keamanan', color: 'text-success', bg: 'bg-green-50' },
+    { icon: Heart, label: 'Preferensi Terapi', color: 'text-primary-500', bg: 'bg-primary-50' },
     { icon: CircleHelp, label: 'Bantuan & Dukungan', color: 'text-purple-500', bg: 'bg-purple-50' },
   ];
 
@@ -64,7 +66,7 @@ export default function ProfilePage() {
           <h2 className="text-2xl font-bold text-white mb-1">{user?.name || 'Ukhti'}</h2>
           
           <div className="inline-flex items-center gap-1.5 bg-primary-500/50 backdrop-blur-sm border border-primary-400/50 text-white px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wider">
-            {isFreeTier ? 'Gratis' : user?.tier} Member
+            {isFreeTier ? 'Free' : user?.tier} Member
           </div>
         </div>
       </div>
@@ -72,26 +74,54 @@ export default function ProfilePage() {
       <main className="flex-1 max-w-md md:max-w-3xl mx-auto w-full px-4 -mt-16 relative z-20">
         <motion.div initial="hidden" animate="visible" variants={stagger} className="space-y-6">
           
-          {/* Upgrade Banner (Jika Free/Basic) */}
-          {isFreeTier && (
-            <motion.div variants={fadeUp} className="bg-white rounded-3xl p-1 shadow-sm border border-secondary-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-secondary-100 to-white rounded-[20px] p-5 relative overflow-hidden">
-                <Crown className="absolute -right-4 -top-4 text-secondary-200 w-24 h-24 opacity-50 transform rotate-12" />
-                <div className="relative z-10">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Crown size={20} className="text-secondary-600" />
-                    <h3 className="font-bold text-secondary-900">Upgrade ke Premium</h3>
-                  </div>
-                  <p className="text-sm text-secondary-800 mb-4 pr-10">
-                    Buka semua fitur terkunci, termasuk history emosi lengkap & curhat tanpa batas.
-                  </p>
-                  <Link to="/upgrade" className="inline-block bg-secondary-600 text-white font-bold px-6 py-2 rounded-full text-sm hover:bg-secondary-700 transition-colors shadow-sm">
-                    Lihat Paket
-                  </Link>
+          {/* Info Membership Saya */}
+          <motion.div variants={fadeUp} className="bg-white rounded-3xl p-5 shadow-sm border border-neutral-100 relative overflow-hidden">
+            <h3 className="font-bold text-neutral-900 mb-4">Info Membership Saya</h3>
+            
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center">
+                  <Crown size={24} />
+                </div>
+                <div>
+                  <p className="text-xs text-neutral-500">Paket Aktif</p>
+                  <p className="font-bold text-lg text-neutral-900">{isFreeTier ? 'Free' : user?.tier}</p>
                 </div>
               </div>
-            </motion.div>
-          )}
+              <span className="bg-green-50 text-green-600 px-3 py-1 rounded-full text-xs font-bold border border-green-200">
+                Aktif
+              </span>
+            </div>
+
+            <div className="space-y-3 mb-5">
+              <div className="flex items-center gap-2 text-sm text-neutral-600">
+                <Calendar size={16} className="text-neutral-400" />
+                <span>Mulai: <span className="font-medium text-neutral-900">01 Jun 2026</span></span>
+              </div>
+              {!isFreeTier && (
+                <>
+                  <div className="flex items-center gap-2 text-sm text-neutral-600">
+                    <Calendar size={16} className="text-neutral-400" />
+                    <span>Berakhir: <span className="font-medium text-neutral-900">01 Jul 2026</span></span>
+                  </div>
+                  <div className="pt-2">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-neutral-500">Sisa Waktu</span>
+                      <span className="font-bold text-primary-600">30 Hari</span>
+                    </div>
+                    <div className="w-full bg-neutral-100 rounded-full h-2">
+                      <div className="bg-primary-500 h-2 rounded-full" style={{ width: '10%' }}></div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <Link to="/upgrade" className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors">
+              <Zap size={18} />
+              {isFreeTier ? 'Upgrade Paket' : 'Perpanjang Paket'}
+            </Link>
+          </motion.div>
 
           {/* Pengaturan Menu */}
           <motion.div variants={fadeUp} className="bg-white rounded-3xl border border-neutral-100 shadow-sm overflow-hidden">
@@ -129,8 +159,8 @@ export default function ProfilePage() {
           </motion.div>
 
           <div className="text-center pb-6">
-            <p className="text-xs text-neutral-400">Qalbie App v1.0.0</p>
-            <p className="text-[10px] text-neutral-400 mt-1">Dibuat dengan ❤️ untuk Muslimah</p>
+            <p className="text-xs text-neutral-400">PWA Membership App v1.1.0</p>
+            <p className="text-[10px] text-neutral-400 mt-1">Sistem Manajemen Membership</p>
           </div>
 
         </motion.div>

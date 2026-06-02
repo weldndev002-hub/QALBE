@@ -12,9 +12,10 @@ export default defineConfig({
       manifest: {
         name: 'QALBIE',
         short_name: 'Qalbie',
-        theme_color: '#16a34a',
-        background_color: '#fafaf9',
+        theme_color: '#F375AE',
+        background_color: '#FFC5DF',
         display: 'standalone',
+        start_url: '/dashboard',
         icons: [
           {
             src: '/icon-192x192.png',

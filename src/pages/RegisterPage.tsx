@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { supabase } from '../lib/supabase';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -11,12 +12,42 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Setelah mendaftar, arahkan ke onboarding untuk melengkapi profil
-    login({ name: name, tier: 'premium' }, 'dummy-jwt-token');
-    navigate('/onboarding');
+    setIsLoading(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.session) {
+        // Jika auto-login setelah register
+        login({ name: name, email: email, tier: 'Free' }, data.session.access_token);
+        navigate('/onboarding');
+      } else {
+        // Jika perlu verifikasi email
+        setSuccessMsg('Registrasi berhasil! Silakan cek kotak masuk email Anda untuk verifikasi.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Terjadi kesalahan saat mendaftar.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -31,6 +62,17 @@ export default function RegisterPage() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-3xl font-display font-bold text-neutral-900 mb-2">Buat Akun Baru</h1>
           <p className="text-neutral-500 mb-8">Bergabunglah dan temukan ruang aman untuk kesehatan mentalmu.</p>
+
+          {errorMsg && (
+            <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-medium">
+              {errorMsg}
+            </div>
+          )}
+          {successMsg && (
+            <div className="mb-6 bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-xl text-sm font-medium">
+              {successMsg}
+            </div>
+          )}
 
           <form onSubmit={handleRegister} className="space-y-4">
             <div>
@@ -91,8 +133,12 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <button type="submit" className="w-full bg-primary-600 text-white font-bold py-3.5 rounded-full mt-6 hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20">
-              Daftar Sekarang
+            <button 
+              type="submit" 
+              disabled={isLoading}
+              className="w-full bg-primary-600 text-white font-bold py-3.5 rounded-full mt-6 hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isLoading ? 'Mendaftar...' : 'Daftar Sekarang'}
             </button>
           </form>
 

@@ -1,14 +1,16 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, MessageCircle, Heart, Headphones, User, LogOut } from 'lucide-react';
+import { Home, MessageCircle, Heart, Headphones, User, LogOut, Download } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../../store/authStore';
 import { useChatStore } from '../../store/chatStore';
+import { usePWA } from '../../hooks/usePWA';
 
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuthStore() as any;
   const { clearSession } = useChatStore() as any;
+  const { isInstallable, installApp } = usePWA();
 
   const tabs = [
     { name: 'Beranda', path: '/dashboard', icon: Home },
@@ -52,7 +54,13 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-neutral-100 bg-neutral-50/50">
+      <div className="p-4 border-t border-neutral-100 bg-neutral-50/50 space-y-2">
+         {isInstallable && (
+           <button onClick={installApp} className="flex items-center gap-4 px-5 py-4 w-full text-left rounded-2xl transition-all font-medium text-primary-600 bg-primary-50 hover:bg-primary-100">
+             <Download size={22} />
+             Install Aplikasi
+           </button>
+         )}
          <button onClick={handleLogout} className="flex items-center gap-4 px-5 py-4 w-full text-left rounded-2xl transition-all font-medium text-red-600 hover:bg-red-50">
             <LogOut size={22} />
             Keluar Akun
