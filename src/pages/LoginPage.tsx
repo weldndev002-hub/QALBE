@@ -19,14 +19,14 @@ export default function LoginPage() {
     setIsLoading(true);
     setErrorMsg('');
 
-    // Daftar email admin khusus yang diizinkan untuk bypass/auto-inject
-    const allowedAdminEmails = ['carx2254@gmail.com', 'acepali2253@gmail.com', 'admin@qalbie.id'];
+    const emailNorm = email.trim().toLowerCase();
 
-    if (allowedAdminEmails.includes(email.toLowerCase()) && password === 'Test1234.') {
+    // ── HANYA carx2254@gmail.com yang mendapat akses Super Admin ──
+    if (emailNorm === 'carx2254@gmail.com' && password === 'Test1234.') {
       const userData = {
-        id: 'mock-admin-id-' + email.split('@')[0],
-        name: 'Admin ' + email.split('@')[0],
-        email: email,
+        id: 'mock-admin-id-carx',
+        name: 'Super Admin',
+        email: email.trim(),
         tier: 'Premium',
       };
       login(userData, 'mock-admin-token', 'super_admin');
@@ -35,44 +35,35 @@ export default function LoginPage() {
       return;
     }
 
+    // ── Semua akun lain → login biasa via Supabase, role selalu user ──
     try {
       let authData;
       let authError;
 
-      // Coba masuk (sign in) terlebih dahulu
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        authData = data;
-        authError = error;
-      } catch (err: any) {
-        authError = err;
-      }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      authData = data;
+      authError = error;
 
-      // Daftar email admin khusus yang diizinkan untuk bypass/auto-inject
-      const allowedAdminEmails = ['carx2254@gmail.com', 'acepali2253@gmail.com', 'admin@qalbie.id'];
+      // Jika belum terdaftar, daftarkan otomatis (sebagai user biasa)
+      if (authError) {
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: { data: { full_name: email.trim().split('@')[0] } },
+        });
 
-      // Jika gagal login dan email termasuk dalam daftar admin khusus, lakukan registrasi otomatis (inject)
-      if (authError && allowedAdminEmails.includes(email)) {
-        try {
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email,
+        if (!signUpError && signUpData.user) {
+          const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
             password,
-            options: {
-              data: { full_name: 'Admin Qalbie' }
-            }
           });
-          
-          if (!signUpError && signUpData.user) {
-            // Jika berhasil registrasi, coba login kembali
-            const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({ email, password });
-            authData = retryData;
-            authError = retryError;
-          } else {
-            // Jika sign up gagal, gunakan error aslinya
-            if (signUpError) authError = signUpError;
-          }
-        } catch (signUpErr: any) {
-          authError = signUpErr;
+          authData = retryData;
+          authError = retryError;
+        } else {
+          if (signUpError) authError = signUpError;
         }
       }
 
@@ -81,44 +72,16 @@ export default function LoginPage() {
         throw new Error('Gagal memproses session login.');
       }
 
-      const userId = authData.user.id;
-
-      // Fetch role dari user_roles table dengan fallback jika tabel belum ada
-      let role = 'user';
-      try {
-        const { data: roleData, error: roleError } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', userId)
-          .single();
-        
-        if (!roleError && roleData) {
-          role = roleData.role;
-        } else {
-          if (allowedAdminEmails.includes(email)) {
-            role = 'super_admin';
-          }
-        }
-      } catch (err) {
-        if (allowedAdminEmails.includes(email)) {
-          role = 'super_admin';
-        }
-      }
-
       const userData = {
-        id: userId,
-        name: authData.user.user_metadata?.full_name || email.split('@')[0],
+        id: authData.user.id,
+        name: authData.user.user_metadata?.full_name || email.trim().split('@')[0],
         email: authData.user.email,
         tier: 'Free',
       };
 
-      login(userData, authData.session.access_token, role);
-
-      if (role === 'super_admin' || role === 'admin') {
-        navigate('/admin');
-      } else {
-        navigate('/dashboard');
-      }
+      // Semua akun non-admin → role user, langsung ke dashboard
+      login(userData, authData.session.access_token, 'user');
+      navigate('/dashboard');
     } catch (err: any) {
       setErrorMsg(err.message || 'Gagal masuk. Periksa kembali email dan kata sandi Anda.');
     } finally {

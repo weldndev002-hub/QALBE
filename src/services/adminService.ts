@@ -157,25 +157,11 @@ export async function getCurrentUserRole(): Promise<UserRole | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Fallback for primary accounts
-  if (user.email === 'admin@qalbie.id' || user.email === 'acepali2253@gmail.com') {
+  const emailLower = user.email?.toLowerCase() || '';
+  if (emailLower === 'carx2254@gmail.com') {
     return 'super_admin';
   }
-
-  try {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .single();
-
-    if (error) throw error;
-    return (data?.role as UserRole) || 'user';
-  } catch (e) {
-    const roles = getLocalData(MOCK_STORAGE_KEYS.ROLES, DEFAULT_MOCK_ROLES);
-    const userRole = roles.find(r => r.user_id === user.id);
-    return (userRole?.role as UserRole) || 'user';
-  }
+  return 'user';
 }
 
 export async function isSuperAdmin(): Promise<boolean> {
