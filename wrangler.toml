@@ -8,7 +8,8 @@ directory = "./dist"
 html_handling = "auto-trailing-slash"
 not_found_handling = "single-page-application"
 
-# Build-time env vars untuk Vite (VITE_* prefix)
-# Setelah deploy, buka Cloudflare Dashboard:
-#   Pages project → Settings → Environment Variables → Add variables di sini
-# Vars ini hanya bisa diinjeksi saat BUILD, bukan runtime untuk static sites.
+# Build-time environment variables yang di-inject ke proses `npm run build`
+# Nilai VITE_* ini akan di-embed ke dalam bundle JS oleh Vite
+[vars]
+VITE_SUPABASE_URL = "https://zltfiscpwffdefaucgbr.supabase.co"
+VITE_API_BASE_URL = "https://api.qalbie.id/v1"
