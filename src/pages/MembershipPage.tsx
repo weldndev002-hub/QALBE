@@ -372,6 +372,7 @@ export default function MembershipPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showSuccess, setShowSuccess] = useState(false);
   const [successOrderId, setSuccessOrderId] = useState('');
+  const [activeTierId, setActiveTierId] = useState<number | undefined>(undefined);
 
   const { user } = useAuthStore() as any;
 
@@ -388,13 +389,23 @@ export default function MembershipPage() {
   }, []);
 
   useEffect(() => {
-    getTiers()
-      .then(data => {
-        setPackages(data.filter(p => p.is_active));
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+    import('../services/adminService').then(({ getTiers, getMemberDetail }) => {
+      getTiers()
+        .then(data => {
+          setPackages(data.filter(p => p.is_active));
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+
+      if (user?.id) {
+        getMemberDetail(user.id).then(detail => {
+          if (detail?.membership?.status === 'active' && detail?.membership?.tier_id) {
+            setActiveTierId(detail.membership.tier_id);
+          }
+        }).catch(console.error);
+      }
+    });
+  }, [user?.id]);
 
   const handleBuy = async (pkg: MembershipTier, billing: 'monthly' | 'yearly', paymentMethod: string) => {
     const price = billing === 'monthly' ? pkg.price_monthly : pkg.price_yearly;
@@ -527,7 +538,7 @@ export default function MembershipPage() {
                   pkg={pkg}
                   index={i}
                   onSelect={setSelectedPkg}
-                  currentTierId={undefined} // TODO: pass user's active tier id
+                  currentTierId={activeTierId}
                 />
               ))
             }

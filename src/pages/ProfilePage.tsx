@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
+import { getMemberDetail } from '../services/adminService';
 import { 
   Settings, 
   Bell, 
@@ -14,16 +15,40 @@ import {
   User as UserIcon,
   Heart,
   Calendar,
-  Zap
+  Zap,
+  Loader2
 } from 'lucide-react';
 import clsx from 'clsx';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore() as any;
+  const { user, logout, login, token, role } = useAuthStore() as any;
   const { clearSession } = useChatStore() as any;
 
-  const isFreeTier = user?.tier === 'Free' || !user?.tier;
+  const [membershipDetail, setMembershipDetail] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user?.id) {
+      getMemberDetail(user.id).then((detail) => {
+        if (detail?.membership?.tier) {
+          setMembershipDetail(detail.membership);
+          // Sinkronkan tier terbaru ke authStore jika berbeda
+          if (user.tier !== detail.membership.tier.name) {
+            login({ ...user, tier: detail.membership.tier.name }, token, role);
+          }
+        }
+        setLoading(false);
+      }).catch(() => {
+        setLoading(false);
+      });
+    } else {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
+  const activeTierName = membershipDetail?.tier?.name || user?.tier || 'Free';
+  const isFreeTier = activeTierName === 'Free' || activeTierName === 'Gratis';
 
   const handleLogout = () => {
     // Simulasi proses logout
@@ -66,7 +91,7 @@ export default function ProfilePage() {
           <h2 className="text-2xl font-bold text-white mb-1">{user?.name || 'Ukhti'}</h2>
           
           <div className="inline-flex items-center gap-1.5 bg-primary-500/50 backdrop-blur-sm border border-primary-400/50 text-white px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wider">
-            {isFreeTier ? 'Free' : user?.tier} Member
+            {activeTierName} Member
           </div>
         </div>
       </div>
@@ -78,44 +103,74 @@ export default function ProfilePage() {
           <motion.div variants={fadeUp} className="bg-white rounded-3xl p-5 shadow-sm border border-neutral-100 relative overflow-hidden">
             <h3 className="font-bold text-neutral-900 mb-4">Info Membership Saya</h3>
             
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center">
-                  <Crown size={24} />
+            {loading ? (
+              <div className="py-8 flex justify-center"><Loader2 className="animate-spin text-primary-500" /></div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center">
+                      <Crown size={24} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-neutral-500">Paket Aktif</p>
+                      <p className="font-bold text-lg text-neutral-900">{activeTierName}</p>
+                    </div>
+                  </div>
+                  <span className="bg-green-50 text-green-600 px-3 py-1 rounded-full text-xs font-bold border border-green-200">
+                    {membershipDetail?.status === 'active' ? 'Aktif' : isFreeTier ? 'Aktif' : 'Tidak Aktif'}
+                  </span>
                 </div>
-                <div>
-                  <p className="text-xs text-neutral-500">Paket Aktif</p>
-                  <p className="font-bold text-lg text-neutral-900">{isFreeTier ? 'Free' : user?.tier}</p>
-                </div>
-              </div>
-              <span className="bg-green-50 text-green-600 px-3 py-1 rounded-full text-xs font-bold border border-green-200">
-                Aktif
-              </span>
-            </div>
 
-            <div className="space-y-3 mb-5">
-              <div className="flex items-center gap-2 text-sm text-neutral-600">
-                <Calendar size={16} className="text-neutral-400" />
-                <span>Mulai: <span className="font-medium text-neutral-900">01 Jun 2026</span></span>
-              </div>
-              {!isFreeTier && (
-                <>
+                <div className="space-y-3 mb-5">
                   <div className="flex items-center gap-2 text-sm text-neutral-600">
                     <Calendar size={16} className="text-neutral-400" />
-                    <span>Berakhir: <span className="font-medium text-neutral-900">01 Jul 2026</span></span>
+                    <span>Mulai: <span className="font-medium text-neutral-900">
+                      {membershipDetail?.started_at ? new Date(membershipDetail.started_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                    </span></span>
                   </div>
-                  <div className="pt-2">
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-neutral-500">Sisa Waktu</span>
-                      <span className="font-bold text-primary-600">30 Hari</span>
-                    </div>
-                    <div className="w-full bg-neutral-100 rounded-full h-2">
-                      <div className="bg-primary-500 h-2 rounded-full" style={{ width: '10%' }}></div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+                  
+                  {!isFreeTier && membershipDetail?.expires_at && (
+                    <>
+                      <div className="flex items-center gap-2 text-sm text-neutral-600">
+                        <Calendar size={16} className="text-neutral-400" />
+                        <span>Berakhir: <span className="font-medium text-neutral-900">
+                          {new Date(membershipDetail.expires_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </span></span>
+                      </div>
+                      <div className="pt-2">
+                        {(() => {
+                          const now = new Date();
+                          const exp = new Date(membershipDetail.expires_at);
+                          const start = new Date(membershipDetail.started_at || Date.now());
+                          const diffTime = exp.getTime() - now.getTime();
+                          const totalTime = exp.getTime() - start.getTime();
+                          
+                          let remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                          if (remainingDays < 0) remainingDays = 0;
+                          
+                          let percent = ((totalTime - diffTime) / totalTime) * 100;
+                          if (percent > 100) percent = 100;
+                          if (percent < 0) percent = 0;
+
+                          return (
+                            <>
+                              <div className="flex justify-between text-xs mb-1">
+                                <span className="text-neutral-500">Sisa Waktu</span>
+                                <span className="font-bold text-primary-600">{remainingDays} Hari</span>
+                              </div>
+                              <div className="w-full bg-neutral-100 rounded-full h-2 overflow-hidden">
+                                <div className="bg-primary-500 h-2 rounded-full transition-all" style={{ width: `${percent}%` }}></div>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
 
             <Link to="/upgrade" className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors">
               <Zap size={18} />
