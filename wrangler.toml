@@ -1,12 +1,18 @@
-name = "qalbie"
+name = "qalbie-mms-dev"
+account_id = "ca2c4dbf10ca7fb5c990df4bcb4c6a8f"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
+
+# Worker script entry point — diperlukan agar "Variables and Secrets"
+# bisa diaktifkan di Cloudflare Dashboard
+main = "src/worker.ts"
 
 # Static assets (Vite build output)
 [assets]
 directory = "./dist"
 html_handling = "auto-trailing-slash"
 not_found_handling = "single-page-application"
+binding = "ASSETS"
 
 # Build-time environment variables yang di-inject ke proses `npm run build`
 # Nilai VITE_* ini akan di-embed ke dalam bundle JS oleh Vite
