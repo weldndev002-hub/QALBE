@@ -240,6 +240,64 @@ async function handleCheckStatus(request: Request, env: Env): Promise<Response> 
   }
 }
 
+// ─── Handler: Ambil Metode Pembayaran (getPaymentMethod) ──────────────────────
+async function handleGetPaymentMethods(request: Request, env: Env): Promise<Response> {
+  try {
+    const { amount } = await request.json() as { amount: number };
+    
+    if (!amount) {
+      return Response.json({ error: 'Parameter amount diperlukan' }, { status: 400, headers: corsHeaders() });
+    }
+
+    const isSandbox = env.DUITKU_IS_SANDBOX !== 'false';
+    const baseUrl = isSandbox
+      ? 'https://sandbox.duitku.com/webapi/api/merchant/paymentmethod/getpaymentmethod'
+      : 'https://passport.duitku.com/webapi/api/merchant/paymentmethod/getpaymentmethod';
+
+    const merchantCode = env.DUITKU_MERCHANT_CODE;
+    const apiKey = env.DUITKU_API_KEY;
+    
+    // datetime format: YYYY-MM-DD HH:mm:ss
+    const now = new Date();
+    // Gunakan UTC+7 untuk waktu
+    const localNow = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+    const datetime = localNow.toISOString().replace('T', ' ').substring(0, 19);
+    
+    // signature = SHA256(merchantcode + amount + datetime + apiKey)
+    const sigStr = `${merchantCode}${amount}${datetime}${apiKey}`;
+    const signature = createHmac('sha256', apiKey).update(sigStr).digest('hex');
+
+    const payload = {
+      merchantcode: merchantCode,
+      amount,
+      datetime,
+      signature
+    };
+
+    const res = await fetch(baseUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json() as any;
+
+    if (data.responseCode !== '00') {
+      return Response.json(
+        { error: data.responseMessage || 'Gagal mengambil metode pembayaran' },
+        { status: 400, headers: corsHeaders() }
+      );
+    }
+
+    return Response.json({
+      paymentMethods: data.paymentFee || []
+    }, { headers: corsHeaders() });
+
+  } catch (err: any) {
+    return Response.json({ error: err.message }, { status: 500, headers: corsHeaders() });
+  }
+}
+
 // ─── Main fetch handler ───────────────────────────────────────────────────────
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -259,6 +317,11 @@ export default {
     // API: Cek status transaksi
     if (pathname === '/api/payment/status' && method === 'POST') {
       return handleCheckStatus(request, env);
+    }
+
+    // API: Ambil metode pembayaran
+    if (pathname === '/api/payment/methods' && method === 'POST') {
+      return handleGetPaymentMethods(request, env);
     }
 
     // API: Callback dari Duitku

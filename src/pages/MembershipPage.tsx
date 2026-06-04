@@ -6,7 +6,7 @@ import {
   ShieldCheck, Clock, Tag, Loader2, AlertCircle, PartyPopper
 } from 'lucide-react';
 import { getTiers, MembershipTier } from '../services/adminService';
-import { createPayment } from '../services/paymentService';
+import { createPayment, getPaymentMethods } from '../services/paymentService';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
 
@@ -83,11 +83,29 @@ function PackageDetailModal({
   loading: boolean;
 }) {
   const [billing, setBilling] = useState<'monthly' | 'yearly'>('monthly');
-  const [paymentMethod, setPaymentMethod] = useState<string>('VC'); // Default Credit Card
+  const [paymentMethod, setPaymentMethod] = useState<string>(''); // Kosongkan awal
+  const [availableMethods, setAvailableMethods] = useState<any[]>([]);
+  const [methodsLoading, setMethodsLoading] = useState(false);
+
   const style = getTierStyle(pkg.level);
   const price = billing === 'monthly' ? pkg.price_monthly : pkg.price_yearly;
   const isFree = pkg.price_monthly === 0;
   const yearlySaving = pkg.price_monthly * 12 - pkg.price_yearly;
+
+  useEffect(() => {
+    if (!isFree && price > 0) {
+      setMethodsLoading(true);
+      getPaymentMethods(price)
+        .then(methods => {
+          setAvailableMethods(methods);
+          if (methods.length > 0 && !methods.find((m: any) => m.paymentMethod === paymentMethod)) {
+            setPaymentMethod(methods[0].paymentMethod);
+          }
+          setMethodsLoading(false);
+        })
+        .catch(() => setMethodsLoading(false));
+    }
+  }, [price, isFree]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4">
@@ -164,31 +182,53 @@ function PackageDetailModal({
         {/* Payment Method Selector */}
         {!isFree && (
           <div className="px-6 pb-2">
-            <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2">Metode Pembayaran</p>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              disabled={loading}
-              className="w-full bg-neutral-50 border border-neutral-200 text-neutral-700 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#7e3188]/30 transition-all"
-            >
-              <optgroup label="Kartu">
-                <option value="VC">Kartu Kredit / Debit</option>
-              </optgroup>
-              <optgroup label="Virtual Account">
-                <option value="BC">BCA Virtual Account</option>
-                <option value="M2">Mandiri Virtual Account</option>
-                <option value="BR">BRI Virtual Account</option>
-                <option value="B1">CIMB Niaga Virtual Account</option>
-                <option value="BT">Permata Virtual Account</option>
-              </optgroup>
-              <optgroup label="E-Wallet">
-                <option value="SP">ShopeePay</option>
-                <option value="O1">OVO</option>
-                <option value="DA">DANA</option>
-                <option value="SA">ShopeePay App</option>
-                <option value="LF">LinkAja</option>
-              </optgroup>
-            </select>
+            <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2 flex justify-between items-center">
+              <span>Metode Pembayaran</span>
+              {methodsLoading && <Loader2 size={12} className="animate-spin text-neutral-400" />}
+            </p>
+            {methodsLoading ? (
+              <div className="w-full bg-neutral-100 animate-pulse text-transparent text-sm rounded-xl px-4 py-2.5">
+                Memuat metode...
+              </div>
+            ) : availableMethods.length > 0 ? (
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                disabled={loading || methodsLoading}
+                className="w-full bg-neutral-50 border border-neutral-200 text-neutral-700 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#7e3188]/30 transition-all appearance-none"
+              >
+                {availableMethods.map((method, idx) => (
+                  <option key={idx} value={method.paymentMethod}>
+                    {method.paymentName}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                disabled={loading}
+                className="w-full bg-neutral-50 border border-neutral-200 text-neutral-700 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#7e3188]/30 transition-all"
+              >
+                <optgroup label="Kartu">
+                  <option value="VC">Kartu Kredit / Debit</option>
+                </optgroup>
+                <optgroup label="Virtual Account">
+                  <option value="BC">BCA Virtual Account</option>
+                  <option value="M2">Mandiri Virtual Account</option>
+                  <option value="BR">BRI Virtual Account</option>
+                  <option value="B1">CIMB Niaga Virtual Account</option>
+                  <option value="BT">Permata Virtual Account</option>
+                </optgroup>
+                <optgroup label="E-Wallet">
+                  <option value="SP">ShopeePay</option>
+                  <option value="O1">OVO</option>
+                  <option value="DA">DANA</option>
+                  <option value="SA">ShopeePay App</option>
+                  <option value="LF">LinkAja</option>
+                </optgroup>
+              </select>
+            )}
           </div>
         )}
 

@@ -96,3 +96,22 @@ export async function checkPaymentStatus(merchantOrderId: string): Promise<'SUCC
     return 'PENDING';
   }
 }
+
+/**
+ * Ambil daftar metode pembayaran dari Duitku via Worker
+ */
+export async function getPaymentMethods(amount: number): Promise<any[]> {
+  try {
+    const res = await fetch('/api/payment/methods', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount }),
+    });
+
+    if (!res.ok) return [];
+    const data = await res.json() as any;
+    return data.paymentMethods || [];
+  } catch {
+    return [];
+  }
+}
