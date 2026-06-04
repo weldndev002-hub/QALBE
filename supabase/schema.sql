@@ -225,3 +225,24 @@ INSERT INTO public.user_memberships (user_id, tier_id, status)
 SELECT id, 1, 'active' FROM auth.users
 ON CONFLICT (user_id) DO NOTHING;
 
+-- ============================================================
+-- 9. RPC untuk Webhook Duitku (Bypass RLS)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.update_user_membership_webhook(
+  p_user_id UUID,
+  p_tier_id INTEGER,
+  p_expires_at TIMESTAMPTZ,
+  p_notes TEXT
+) RETURNS VOID AS $$
+BEGIN
+  INSERT INTO public.user_memberships (user_id, tier_id, status, started_at, expires_at, notes, updated_at)
+  VALUES (p_user_id, p_tier_id, 'active', NOW(), p_expires_at, p_notes, NOW())
+  ON CONFLICT (user_id) DO UPDATE SET
+    tier_id = EXCLUDED.tier_id,
+    status = EXCLUDED.status,
+    started_at = EXCLUDED.started_at,
+    expires_at = EXCLUDED.expires_at,
+    notes = EXCLUDED.notes,
+    updated_at = EXCLUDED.updated_at;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

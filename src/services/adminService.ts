@@ -378,13 +378,19 @@ export async function getMemberDetail(userId: string): Promise<MemberWithDetails
 
     if (error) throw error;
 
+    const rawRoles = (data as any).user_roles;
+    const roleStr = Array.isArray(rawRoles) ? rawRoles[0]?.role : rawRoles?.role;
+
+    const rawMemb = (data as any).user_memberships;
+    const membObj = Array.isArray(rawMemb) ? rawMemb[0] : rawMemb;
+
     return {
       ...data,
-      role: (data as any).user_roles?.[0]?.role || 'user',
-      membership: (data as any).user_memberships?.[0]
+      role: roleStr || 'user',
+      membership: membObj
         ? {
-            ...(data as any).user_memberships[0],
-            tier: (data as any).user_memberships[0].membership_tiers,
+            ...membObj,
+            tier: membObj.membership_tiers || (Array.isArray(membObj.membership_tiers) ? membObj.membership_tiers[0] : null),
           }
         : undefined,
     };

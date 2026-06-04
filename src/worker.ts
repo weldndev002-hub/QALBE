@@ -26,9 +26,15 @@ function makeDuitkuSignature(merchantCode: string, merchantOrderId: string, paym
 }
 
 function verifyCallbackSignature(merchantCode: string, amount: string, merchantOrderId: string, apiKey: string, receivedSig: string): boolean {
-  const str = merchantCode + amount + merchantOrderId + apiKey;
-  const expected = createHash('md5').update(str).digest('hex');
-  return expected === receivedSig;
+  const strMD5 = merchantCode + amount + merchantOrderId + apiKey;
+  const expectedMD5 = createHash('md5').update(strMD5).digest('hex');
+  
+  const strHMAC = merchantCode + amount + merchantOrderId;
+  const expectedHMAC = createHmac('sha256', apiKey).update(strHMAC).digest('hex');
+  
+  console.log(`[Duitku Callback] Sig Check - Received: ${receivedSig}, MD5: ${expectedMD5}, HMAC: ${expectedHMAC}`);
+  
+  return receivedSig === expectedMD5 || receivedSig === expectedHMAC;
 }
 
 // ─── CORS headers ─────────────────────────────────────────────────────────────
@@ -144,8 +150,11 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
 
     // Verifikasi signature
     if (!verifyCallbackSignature(merchantCode, amount, merchantOrderId, env.DUITKU_API_KEY, signature)) {
+      console.error(`[Duitku Callback] Invalid signature for order ${merchantOrderId}`);
       return new Response('Bad Signature', { status: 400 });
     }
+    
+    console.log(`[Duitku Callback] Signature OK for order ${merchantOrderId}. ResultCode: ${resultCode}`);
 
     // Hanya proses jika sukses (resultCode === '00')
     if (resultCode === '00') {
@@ -166,24 +175,23 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
         const durationMonths = billing === 'yearly' ? 12 : 1;
         const expiresAt = new Date(Date.now() + durationMonths * 30 * 24 * 60 * 60 * 1000).toISOString();
 
-        await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/user_memberships?on_conflict=user_id`, {
+        // Gunakan RPC (Postgres Function) untuk bypass RLS
+        const rpcRes = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/rpc/update_user_membership_webhook`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'apikey': env.VITE_SUPABASE_ANON_KEY,
             'Authorization': `Bearer ${env.VITE_SUPABASE_ANON_KEY}`,
-            'Prefer': 'resolution=merge-duplicates',
           },
           body: JSON.stringify({
-            user_id: userId,
-            tier_id: tierId,
-            status: 'active',
-            started_at: new Date().toISOString(),
-            expires_at: expiresAt,
-            notes: `Pembayaran via Duitku | Order: ${merchantOrderId}`,
-            updated_at: new Date().toISOString(),
+            p_user_id: userId,
+            p_tier_id: tierId,
+            p_expires_at: expiresAt,
+            p_notes: `Pembayaran via Duitku | Order: ${merchantOrderId}`
           }),
         });
+        
+        console.log(`[Duitku Callback] RPC Update Response: ${rpcRes.status} ${rpcRes.statusText}`);
 
         // Catat ke membership_history
         await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/membership_history`, {
