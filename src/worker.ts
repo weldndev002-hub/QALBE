@@ -53,11 +53,12 @@ async function handleCreatePayment(request: Request, env: Env): Promise<Response
       email: string;
       customerName: string;
       userId: string;
+      paymentMethod: string;
     };
 
-    const { packageName, tierId, amount, billing, email, customerName, userId } = body;
+    const { packageName, tierId, amount, billing, email, customerName, userId, paymentMethod } = body;
 
-    if (!amount || !email || !tierId) {
+    if (!amount || !email || !tierId || !paymentMethod) {
       return Response.json({ error: 'Parameter tidak lengkap' }, { status: 400, headers: corsHeaders() });
     }
 
@@ -80,7 +81,7 @@ async function handleCreatePayment(request: Request, env: Env): Promise<Response
     const duitkuPayload = {
       merchantCode,
       paymentAmount: amount,
-      paymentMethod: 'ALL', // tampilkan semua metode pembayaran
+      paymentMethod: paymentMethod, // Gunakan metode pembayaran yang dipilih user
       merchantOrderId,
       productDetails: `Qalbie ${packageName} Membership (${billing === 'monthly' ? 'Bulanan' : 'Tahunan'})`,
       additionalParam: JSON.stringify({ userId, tierId, billing }),

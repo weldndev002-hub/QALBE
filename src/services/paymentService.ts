@@ -21,6 +21,7 @@ export interface CreatePaymentParams {
   email: string;
   customerName: string;
   userId: string;
+  paymentMethod: string;
 }
 
 export interface CreatePaymentResult {

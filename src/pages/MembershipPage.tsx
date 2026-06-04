@@ -79,10 +79,11 @@ function PackageDetailModal({
 }: {
   pkg: MembershipTier;
   onClose: () => void;
-  onBuy: (pkg: MembershipTier, billing: 'monthly' | 'yearly') => void;
+  onBuy: (pkg: MembershipTier, billing: 'monthly' | 'yearly', paymentMethod: string) => void;
   loading: boolean;
 }) {
   const [billing, setBilling] = useState<'monthly' | 'yearly'>('monthly');
+  const [paymentMethod, setPaymentMethod] = useState<string>('VC'); // Default Credit Card
   const style = getTierStyle(pkg.level);
   const price = billing === 'monthly' ? pkg.price_monthly : pkg.price_yearly;
   const isFree = pkg.price_monthly === 0;
@@ -160,10 +161,41 @@ function PackageDetailModal({
           )}
         </div>
 
+        {/* Payment Method Selector */}
+        {!isFree && (
+          <div className="px-6 pb-2">
+            <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2">Metode Pembayaran</p>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              disabled={loading}
+              className="w-full bg-neutral-50 border border-neutral-200 text-neutral-700 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#7e3188]/30 transition-all"
+            >
+              <optgroup label="Kartu">
+                <option value="VC">Kartu Kredit / Debit</option>
+              </optgroup>
+              <optgroup label="Virtual Account">
+                <option value="BC">BCA Virtual Account</option>
+                <option value="M2">Mandiri Virtual Account</option>
+                <option value="BR">BRI Virtual Account</option>
+                <option value="B1">CIMB Niaga Virtual Account</option>
+                <option value="BT">Permata Virtual Account</option>
+              </optgroup>
+              <optgroup label="E-Wallet">
+                <option value="SP">ShopeePay</option>
+                <option value="O1">OVO</option>
+                <option value="DA">DANA</option>
+                <option value="SA">ShopeePay App</option>
+                <option value="LF">LinkAja</option>
+              </optgroup>
+            </select>
+          </div>
+        )}
+
         {/* CTA */}
-        <div className="p-6 pt-0">
+        <div className="p-6 pt-2">
           <button
-            onClick={() => onBuy(pkg, billing)}
+            onClick={() => onBuy(pkg, billing, isFree ? '' : paymentMethod)}
             disabled={loading}
             className="w-full bg-[#7e3188] hover:bg-[#682870] disabled:opacity-70 text-white py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#7e3188]/20"
           >
@@ -324,7 +356,7 @@ export default function MembershipPage() {
       .catch(() => setLoading(false));
   }, []);
 
-  const handleBuy = async (pkg: MembershipTier, billing: 'monthly' | 'yearly') => {
+  const handleBuy = async (pkg: MembershipTier, billing: 'monthly' | 'yearly', paymentMethod: string) => {
     const price = billing === 'monthly' ? pkg.price_monthly : pkg.price_yearly;
 
     if (price === 0) {
@@ -350,6 +382,7 @@ export default function MembershipPage() {
         email: user.email,
         customerName: user.user_metadata?.full_name || user.email.split('@')[0],
         userId: user.id,
+        paymentMethod: paymentMethod || 'VC',
       });
 
       // Redirect ke halaman pembayaran Duitku
