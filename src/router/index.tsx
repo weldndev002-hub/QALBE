@@ -1,14 +1,8 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from '../pages/LandingPage';
 import OnboardingPage from '../pages/OnboardingPage';
-import DashboardPage from '../pages/DashboardPage';
-import ChatPage from '../pages/ChatPage';
-import MoodTrackerPage from '../pages/MoodTrackerPage';
-import StressMeterPage from '../pages/StressMeterPage';
-import AudioTerapiPage from '../pages/AudioTerapiPage';
-import ArticlePage from '../pages/ArticlePage';
 import ProfilePage from '../pages/ProfilePage';
-import UpgradePage from '../pages/UpgradePage';
+import MembershipPage from '../pages/MembershipPage';
 import LoginPage from '../pages/LoginPage';
 import RegisterPage from '../pages/RegisterPage';
 import AdminPage from '../pages/AdminPage';
@@ -18,6 +12,7 @@ export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/login" element={<LoginPage />} />
@@ -26,14 +21,17 @@ export default function AppRouter() {
 
         {/* Protected: harus login */}
         <Route element={<ProtectedRoute />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/chat" element={<ChatPage />} />
-          <Route path="/mood" element={<MoodTrackerPage />} />
-          <Route path="/stress" element={<StressMeterPage />} />
-          <Route path="/audio" element={<AudioTerapiPage />} />
-          <Route path="/artikel" element={<ArticlePage />} />
+          <Route path="/membership" element={<MembershipPage />} />
           <Route path="/profil" element={<ProfilePage />} />
-          <Route path="/upgrade" element={<UpgradePage />} />
+
+          {/* Redirect halaman lama ke membership */}
+          <Route path="/dashboard" element={<Navigate to="/membership" replace />} />
+          <Route path="/chat" element={<Navigate to="/membership" replace />} />
+          <Route path="/mood" element={<Navigate to="/membership" replace />} />
+          <Route path="/stress" element={<Navigate to="/membership" replace />} />
+          <Route path="/audio" element={<Navigate to="/membership" replace />} />
+          <Route path="/artikel" element={<Navigate to="/membership" replace />} />
+          <Route path="/upgrade" element={<Navigate to="/membership" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

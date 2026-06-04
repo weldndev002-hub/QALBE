@@ -15,7 +15,7 @@ export default defineConfig({
         theme_color: '#F375AE',
         background_color: '#FFC5DF',
         display: 'standalone',
-        start_url: '/dashboard',
+        start_url: '/membership',
         icons: [
           {
             src: '/icon-192x192.png',
@@ -37,4 +37,19 @@ export default defineConfig({
       },
     })
   ],
+
+  // Proxy /api dan /callback ke wrangler dev saat development
+  // Jalankan `npm run dev:worker` di terminal terpisah
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+      },
+      '/callback': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+      },
+    },
+  },
 })

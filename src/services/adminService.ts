@@ -102,10 +102,10 @@ const MOCK_STORAGE_KEYS = {
 };
 
 const DEFAULT_MOCK_TIERS: MembershipTier[] = [
-  { id: 1, name: 'Free', slug: 'free', level: 0, description: 'Default free tier', features: ['Akses Basic Chat AI'], price_monthly: 0, price_yearly: 0, is_active: true, created_at: new Date().toISOString() },
-  { id: 2, name: 'Basic', slug: 'basic', level: 1, description: 'Basic premium features', features: ['Akses Audio Terapi Basic', 'Limit Chat AI 50/hari'], price_monthly: 29000, price_yearly: 290000, is_active: true, created_at: new Date().toISOString() },
-  { id: 3, name: 'Pro', slug: 'pro', level: 2, description: 'Pro membership access', features: ['Akses Audio Terapi Premium', 'Limit Chat AI 200/hari', 'Laporan Mood Tracker Bulanan'], price_monthly: 49000, price_yearly: 490000, is_active: true, created_at: new Date().toISOString() },
-  { id: 4, name: 'Premium', slug: 'premium', level: 3, description: 'Full access package', features: ['Semua Fitur Pro', 'Sesi Konsultasi 1-on-1'], price_monthly: 99000, price_yearly: 990000, is_active: true, created_at: new Date().toISOString() }
+  { id: 1, name: 'Free', slug: 'free', level: 0, description: 'Akses dasar gratis untuk mulai perjalanan sehatmu', features: ['Akses Basic Chat AI'], price_monthly: 0, price_yearly: 0, is_active: true, created_at: new Date().toISOString() },
+  { id: 2, name: 'Basic', slug: 'basic', level: 1, description: 'Fitur premium dasar untuk kesehatan mental sehari-hari', features: ['Akses Audio Terapi Basic', 'Limit Chat AI 50/hari', 'Laporan Mood Tracker Mingguan'], price_monthly: 29000, price_yearly: 290000, is_active: true, created_at: new Date().toISOString() },
+  { id: 3, name: 'Pro', slug: 'pro', level: 2, description: 'Akses lengkap untuk perjalanan healing yang lebih dalam', features: ['Akses Audio Terapi Premium', 'Limit Chat AI 200/hari', 'Laporan Mood Tracker Bulanan', 'Stress Meter Lanjutan'], price_monthly: 49000, price_yearly: 490000, is_active: true, created_at: new Date().toISOString() },
+  { id: 4, name: 'Premium', slug: 'premium', level: 3, description: 'Paket terlengkap dengan semua fitur eksklusif Qalbie', features: ['Semua Fitur Pro', 'Sesi Konsultasi 1-on-1', 'Prioritas Dukungan', 'Akses Konten Eksklusif'], price_monthly: 99000, price_yearly: 990000, is_active: true, created_at: new Date().toISOString() }
 ];
 
 const DEFAULT_MOCK_PROFILES: Profile[] = [

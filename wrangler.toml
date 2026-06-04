@@ -3,8 +3,7 @@ account_id = "ca2c4dbf10ca7fb5c990df4bcb4c6a8f"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Worker script entry point — diperlukan agar "Variables and Secrets"
-# bisa diaktifkan di Cloudflare Dashboard
+# Worker script entry point
 main = "src/worker.ts"
 
 # Static assets (Vite build output)
@@ -14,8 +13,14 @@ html_handling = "auto-trailing-slash"
 not_found_handling = "single-page-application"
 binding = "ASSETS"
 
-# Build-time environment variables yang di-inject ke proses `npm run build`
-# Nilai VITE_* ini akan di-embed ke dalam bundle JS oleh Vite
+# ─── Build-time variables (di-embed ke JS bundle oleh Vite saat npm run build) ───
+# Nilai ini AMAN di-commit — bukan secret
 [vars]
 VITE_SUPABASE_URL = "https://zltfiscpwffdefaucgbr.supabase.co"
 VITE_API_BASE_URL = "https://api.qalbie.id/v1"
+
+# ─── Runtime secrets (diset via `wrangler secret put` atau Cloudflare Dashboard) ─
+# DUITKU_MERCHANT_CODE  → wrangler secret put DUITKU_MERCHANT_CODE
+# DUITKU_API_KEY        → wrangler secret put DUITKU_API_KEY
+# DUITKU_IS_SANDBOX     → wrangler secret put DUITKU_IS_SANDBOX  (nilai: "true" atau "false")
+# VITE_SUPABASE_ANON_KEY → wrangler secret put VITE_SUPABASE_ANON_KEY
