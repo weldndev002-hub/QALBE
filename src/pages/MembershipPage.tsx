@@ -265,31 +265,34 @@ function PackageDetailModal({
   );
 }
 
-// ─── Kartu Paket ──────────────────────────────────────────────────────────────
-function PackageCard({ pkg, index, onSelect, currentTierId }: {
+function PackageCard({ pkg, index, onSelect, currentTierId, currentTierLevel = 0 }: {
   pkg: MembershipTier;
   index: number;
   onSelect: (pkg: MembershipTier) => void;
   currentTierId?: number;
+  currentTierLevel?: number;
 }) {
   const style = getTierStyle(pkg.level);
   const isPopular = pkg.level === 2;
   const isPremium = pkg.level === 3;
   const isActive = pkg.id === currentTierId;
+  const isLowerTier = !isActive && pkg.level < currentTierLevel;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.08 }}
-      onClick={() => onSelect(pkg)}
+      onClick={() => {
+        if (!isLowerTier) onSelect(pkg);
+      }}
       className={clsx(
-        'relative bg-white rounded-2xl border-2 cursor-pointer group overflow-hidden transition-all duration-300',
-        'hover:-translate-y-1 hover:shadow-xl',
+        'relative bg-white rounded-2xl border-2 overflow-hidden transition-all duration-300',
+        isLowerTier ? 'opacity-70 grayscale-[30%] cursor-not-allowed' : 'cursor-pointer group hover:-translate-y-1 hover:shadow-xl',
         style.border,
-        isPremium && 'ring-2 ring-[#7e3188]/30',
+        isPremium && !isLowerTier && 'ring-2 ring-[#7e3188]/30',
         isActive && 'ring-2 ring-emerald-400',
-        style.glow && `shadow-lg ${style.glow}`
+        style.glow && !isLowerTier && `shadow-lg ${style.glow}`
       )}
     >
       {/* Badge */}
@@ -346,16 +349,20 @@ function PackageCard({ pkg, index, onSelect, currentTierId }: {
           )}
         </div>
 
-        <button className={clsx(
+        <button 
+          disabled={isLowerTier}
+          className={clsx(
           'w-full py-3 rounded-xl font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2',
           isActive
             ? 'bg-emerald-50 text-emerald-700 border-2 border-emerald-200'
-            : isPremium || isPopular
-              ? 'bg-[#7e3188] text-white group-hover:bg-[#682870] shadow-md shadow-[#7e3188]/20'
-              : 'bg-neutral-100 text-neutral-700 group-hover:bg-neutral-200'
+            : isLowerTier
+              ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
+              : isPremium || isPopular
+                ? 'bg-[#7e3188] text-white group-hover:bg-[#682870] shadow-md shadow-[#7e3188]/20'
+                : 'bg-neutral-100 text-neutral-700 group-hover:bg-neutral-200'
         )}>
-          {isActive ? '✓ Paket Aktif' : pkg.price_monthly === 0 ? 'Mulai Gratis' : 'Pilih Paket'}
-          {!isActive && <ArrowRight size={15} />}
+          {isActive ? '✓ Paket Aktif' : isLowerTier ? 'Paket Lebih Rendah' : pkg.price_monthly === 0 ? 'Mulai Gratis' : 'Pilih Paket'}
+          {!isActive && !isLowerTier && <ArrowRight size={15} />}
         </button>
       </div>
     </motion.div>
@@ -539,6 +546,7 @@ export default function MembershipPage() {
                   index={i}
                   onSelect={setSelectedPkg}
                   currentTierId={activeTierId}
+                  currentTierLevel={packages.find(p => p.id === activeTierId)?.level || 0}
                 />
               ))
             }
