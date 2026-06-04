@@ -167,7 +167,7 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
         const durationMonths = billing === 'yearly' ? 12 : 1;
         const expiresAt = new Date(Date.now() + durationMonths * 30 * 24 * 60 * 60 * 1000).toISOString();
 
-        await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/user_memberships`, {
+        await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/user_memberships?on_conflict=user_id`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
