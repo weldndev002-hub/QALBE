@@ -79,7 +79,7 @@ async function handleCreatePayment(request: Request, env: Env): Promise<Response
     // URL dinamis berdasarkan host request
     const host = new URL(request.url).origin;
     const callbackUrl = `${host}/callback`;
-    const returnUrl = `${host}/membership?status=success&orderId=${merchantOrderId}`;
+    const returnUrl = `${host}/membership?from_payment=true&orderId=${merchantOrderId}`;
 
     const signature = makeDuitkuSignature(merchantCode, merchantOrderId, amount, apiKey);
 

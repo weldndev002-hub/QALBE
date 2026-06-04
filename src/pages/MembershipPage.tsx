@@ -6,7 +6,7 @@ import {
   ShieldCheck, Clock, Tag, Loader2, AlertCircle, PartyPopper
 } from 'lucide-react';
 import { getTiers, MembershipTier } from '../services/adminService';
-import { createPayment, getPaymentMethods } from '../services/paymentService';
+import { createPayment, getPaymentMethods, checkPaymentStatus } from '../services/paymentService';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
 
@@ -97,9 +97,15 @@ function PackageDetailModal({
       setMethodsLoading(true);
       getPaymentMethods(price)
         .then(methods => {
-          setAvailableMethods(methods);
-          if (methods.length > 0 && !methods.find((m: any) => m.paymentMethod === paymentMethod)) {
-            setPaymentMethod(methods[0].paymentMethod);
+          // Hanya E-Wallet (OVO, DANA, ShopeePay, LinkAja, QRIS, dll)
+          const allowedWallets = ['SP', 'O1', 'DA', 'SA', 'LF', 'NQ', 'LQ', 'SQ'];
+          const ewalletMethods = methods.filter((m: any) => allowedWallets.includes(m.paymentMethod));
+          
+          setAvailableMethods(ewalletMethods);
+          if (ewalletMethods.length > 0 && !ewalletMethods.find((m: any) => m.paymentMethod === paymentMethod)) {
+            setPaymentMethod(ewalletMethods[0].paymentMethod);
+          } else if (ewalletMethods.length === 0) {
+            setPaymentMethod('O1'); // Fallback default
           }
           setMethodsLoading(false);
         })
@@ -210,22 +216,13 @@ function PackageDetailModal({
                 disabled={loading}
                 className="w-full bg-neutral-50 border border-neutral-200 text-neutral-700 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#7e3188]/30 transition-all"
               >
-                <optgroup label="Kartu">
-                  <option value="VC">Kartu Kredit / Debit</option>
-                </optgroup>
-                <optgroup label="Virtual Account">
-                  <option value="BC">BCA Virtual Account</option>
-                  <option value="M2">Mandiri Virtual Account</option>
-                  <option value="BR">BRI Virtual Account</option>
-                  <option value="B1">CIMB Niaga Virtual Account</option>
-                  <option value="BT">Permata Virtual Account</option>
-                </optgroup>
-                <optgroup label="E-Wallet">
-                  <option value="SP">ShopeePay</option>
+                <optgroup label="E-Wallet & QRIS">
                   <option value="O1">OVO</option>
                   <option value="DA">DANA</option>
+                  <option value="SP">ShopeePay</option>
                   <option value="SA">ShopeePay App</option>
                   <option value="LF">LinkAja</option>
+                  <option value="NQ">QRIS</option>
                 </optgroup>
               </select>
             )}
@@ -383,17 +380,42 @@ export default function MembershipPage() {
 
   const { user } = useAuthStore() as any;
 
-  // Cek return dari Duitku (status=success di URL)
+  // Cek return dari Duitku
   useEffect(() => {
-    const status = searchParams.get('status');
+    const fromPayment = searchParams.get('from_payment');
+    const statusSuccess = searchParams.get('status'); // Fallback in case old URL is hit
     const orderId = searchParams.get('orderId');
-    if (status === 'success' && orderId) {
-      setShowSuccess(true);
-      setSuccessOrderId(orderId);
+    
+    if ((fromPayment === 'true' || statusSuccess === 'success') && orderId) {
+      // Cek status transaksi asli via Worker
+      checkPaymentStatus(orderId).then((status) => {
+        if (status === 'SUCCESS') {
+          setShowSuccess(true);
+          setSuccessOrderId(orderId);
+          
+          // Refresh membership
+          if (user?.id) {
+            import('../services/adminService').then(({ getMemberDetail }) => {
+              getMemberDetail(user.id).then(detail => {
+                if (detail?.membership?.status === 'active' && detail?.membership?.tier_id) {
+                  setActiveTierId(detail.membership.tier_id);
+                }
+              }).catch(console.error);
+            });
+          }
+        } else if (status === 'PENDING') {
+          setPaymentError('Pembayaran kamu sedang diproses atau menunggu diselesaikan. Selesaikan pembayaran sesuai instruksi.');
+        } else {
+          setPaymentError('Pembayaran belum diselesaikan atau dibatalkan.');
+        }
+      }).catch(() => {
+        // Fallback or ignore
+      });
+      
       // Bersihkan URL params
       setSearchParams({});
     }
-  }, []);
+  }, [user?.id, searchParams, setSearchParams]);
 
   useEffect(() => {
     import('../services/adminService').then(({ getTiers, getMemberDetail }) => {
