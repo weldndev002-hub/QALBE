@@ -7,7 +7,7 @@
  *  - *                         → serve static assets (Vite build)
  */
 
-import { createHmac } from 'node:crypto';
+import { createHmac, createHash } from 'node:crypto';
 
 interface Env {
   ASSETS: Fetcher;
@@ -25,10 +25,9 @@ function makeDuitkuSignature(merchantCode: string, merchantOrderId: string, paym
   return createHmac('sha256', apiKey).update(str).digest('hex');
 }
 
-// ─── Helper: verify callback signature ───────────────────────────────────────
 function verifyCallbackSignature(merchantCode: string, amount: string, merchantOrderId: string, apiKey: string, receivedSig: string): boolean {
-  const str = merchantCode + amount + merchantOrderId;
-  const expected = createHmac('sha256', apiKey).update(str).digest('hex');
+  const str = merchantCode + amount + merchantOrderId + apiKey;
+  const expected = createHash('md5').update(str).digest('hex');
   return expected === receivedSig;
 }
 
@@ -206,7 +205,7 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
       }
     }
 
-    return new Response('OK', { status: 200 });
+    return new Response('SUCCESS', { status: 200 });
   } catch (err: any) {
     return new Response('Error: ' + err.message, { status: 500 });
   }
