@@ -153,8 +153,12 @@ function setLocalData<T>(key: string, value: T): void {
 // ROLE CHECK
 // ─────────────────────────────────────────────
 
-export async function getCurrentUserRole(): Promise<UserRole | null> {
-  const { data: { user } } = await supabase.auth.getUser();
+export async function getCurrentUserRole(userObj?: any): Promise<UserRole | null> {
+  let user = userObj;
+  if (!user) {
+    const { data } = await supabase.auth.getSession();
+    user = data.session?.user;
+  }
   if (!user) return null;
 
   const emailLower = user.email?.toLowerCase() || '';
