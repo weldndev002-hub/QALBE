@@ -59,9 +59,10 @@ async function handleCreatePayment(request: Request, env: Env): Promise<Response
       customerName: string;
       userId: string;
       paymentMethod: string;
+      phoneNumber?: string;
     };
 
-    const { packageName, tierId, amount, billing, email, customerName, userId, paymentMethod } = body;
+    const { packageName, tierId, amount, billing, email, customerName, userId, paymentMethod, phoneNumber } = body;
 
     if (!amount || !email || !tierId || !paymentMethod) {
       return Response.json({ error: 'Parameter tidak lengkap' }, { status: 400, headers: corsHeaders() });
@@ -93,7 +94,7 @@ async function handleCreatePayment(request: Request, env: Env): Promise<Response
       merchantUserInfo: userId,
       customerVaName: customerName || email.split('@')[0],
       email,
-      phoneNumber: '',
+      phoneNumber: phoneNumber || '081234567890', // OVO dan LinkAja mewajibkan nomor HP
       itemDetails: [{
         name: `Qalbie ${packageName} Membership`,
         price: amount,
@@ -103,7 +104,7 @@ async function handleCreatePayment(request: Request, env: Env): Promise<Response
         firstName: customerName || email.split('@')[0],
         lastName: '',
         email,
-        phoneNumber: '',
+        phoneNumber: phoneNumber || '081234567890',
       },
       callbackUrl,
       returnUrl,
@@ -121,7 +122,7 @@ async function handleCreatePayment(request: Request, env: Env): Promise<Response
 
     if (!duitkuRes.ok || duitkuData.statusCode !== '00') {
       return Response.json(
-        { error: duitkuData.statusMessage || 'Gagal membuat transaksi' },
+        { error: `Duitku Error: ${duitkuData.statusMessage || JSON.stringify(duitkuData)}` },
         { status: 400, headers: corsHeaders() }
       );
     }

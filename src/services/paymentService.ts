@@ -22,6 +22,7 @@ export interface CreatePaymentParams {
   customerName: string;
   userId: string;
   paymentMethod: string;
+  phoneNumber?: string;
 }
 
 export interface CreatePaymentResult {

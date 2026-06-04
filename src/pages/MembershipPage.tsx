@@ -79,13 +79,14 @@ function PackageDetailModal({
 }: {
   pkg: MembershipTier;
   onClose: () => void;
-  onBuy: (pkg: MembershipTier, billing: 'monthly' | 'yearly', paymentMethod: string) => void;
+  onBuy: (pkg: MembershipTier, billing: 'monthly' | 'yearly', paymentMethod: string, phoneNumber?: string) => void;
   loading: boolean;
 }) {
   const [billing, setBilling] = useState<'monthly' | 'yearly'>('monthly');
   const [paymentMethod, setPaymentMethod] = useState<string>(''); // Kosongkan awal
   const [availableMethods, setAvailableMethods] = useState<any[]>([]);
   const [methodsLoading, setMethodsLoading] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
 
   const style = getTierStyle(pkg.level);
   const price = billing === 'monthly' ? pkg.price_monthly : pkg.price_yearly;
@@ -226,14 +227,30 @@ function PackageDetailModal({
                 </optgroup>
               </select>
             )}
+            
+            {(paymentMethod === 'O1' || paymentMethod === 'LF') && !isFree && !methodsLoading && (
+              <div className="mt-3">
+                <label className="text-xs font-bold text-neutral-500 mb-1 block">
+                  Nomor HP (OVO / LinkAja)
+                </label>
+                <input
+                  type="tel"
+                  placeholder="Contoh: 081234567890"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                  disabled={loading}
+                  className="w-full bg-neutral-50 border border-neutral-200 text-neutral-700 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#7e3188]/30 transition-all"
+                />
+              </div>
+            )}
           </div>
         )}
 
         {/* CTA */}
         <div className="p-6 pt-2">
           <button
-            onClick={() => onBuy(pkg, billing, isFree ? '' : paymentMethod)}
-            disabled={loading}
+            onClick={() => onBuy(pkg, billing, isFree ? '' : paymentMethod, phoneNumber)}
+            disabled={loading || methodsLoading || ((paymentMethod === 'O1' || paymentMethod === 'LF') && phoneNumber.length < 9)}
             className="w-full bg-[#7e3188] hover:bg-[#682870] disabled:opacity-70 text-white py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#7e3188]/20"
           >
             {loading ? (
@@ -436,7 +453,7 @@ export default function MembershipPage() {
     });
   }, [user?.id]);
 
-  const handleBuy = async (pkg: MembershipTier, billing: 'monthly' | 'yearly', paymentMethod: string) => {
+  const handleBuy = async (pkg: MembershipTier, billing: 'monthly' | 'yearly', paymentMethod: string, phoneNumber?: string) => {
     const price = billing === 'monthly' ? pkg.price_monthly : pkg.price_yearly;
 
     if (price === 0) {
@@ -462,7 +479,8 @@ export default function MembershipPage() {
         email: user.email,
         customerName: user.user_metadata?.full_name || user.email.split('@')[0],
         userId: user.id,
-        paymentMethod: paymentMethod || 'VC',
+        paymentMethod: paymentMethod || 'O1',
+        phoneNumber,
       });
 
       // Redirect ke halaman pembayaran Duitku
