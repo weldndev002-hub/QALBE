@@ -9,10 +9,16 @@ function App() {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         if (session?.user) {
           const role = await getCurrentUserRole(session.user);
-          login(session.user, session.access_token, role);
+          const userData = {
+            id: session.user.id,
+            email: session.user.email,
+            name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Ukhti',
+            avatar: session.user.user_metadata?.avatar_url,
+          };
+          login(userData, session.access_token, role);
         }
       } else if (event === 'SIGNED_OUT') {
         logout();

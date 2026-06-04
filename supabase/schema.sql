@@ -246,3 +246,13 @@ BEGIN
     updated_at = EXCLUDED.updated_at;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+-- ============================================================
+-- 10. RPC untuk Menghapus Akun (Bypass RLS)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.delete_user_account()
+RETURNS void AS $$
+BEGIN
+  -- Hapus dari auth.users (Tabel publik yang memiliki referensi ON DELETE CASCADE akan otomatis terhapus)
+  DELETE FROM auth.users WHERE id = auth.uid();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
