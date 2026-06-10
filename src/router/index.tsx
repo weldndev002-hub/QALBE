@@ -6,6 +6,7 @@ import MembershipPage from '../pages/MembershipPage';
 import LoginPage from '../pages/LoginPage';
 import RegisterPage from '../pages/RegisterPage';
 import AdminPage from '../pages/AdminPage';
+import AuthCallbackPage from '../pages/AuthCallbackPage';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRouter() {
@@ -17,6 +18,7 @@ export default function AppRouter() {
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
         <Route path="/admin" element={<AdminPage />} />
 
         {/* Protected: harus login */}
