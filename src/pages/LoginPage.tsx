@@ -37,50 +37,31 @@ export default function LoginPage() {
 
     // ── Semua akun lain → login biasa via Supabase, role selalu user ──
     try {
-      let authData;
-      let authError;
-
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
-      authData = data;
-      authError = error;
 
-      // Jika belum terdaftar, daftarkan otomatis (sebagai user biasa)
-      if (authError) {
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: { data: { full_name: email.trim().split('@')[0] } },
-        });
-
-        if (!signUpError && signUpData.user) {
-          const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
-            email: email.trim(),
-            password,
-          });
-          authData = retryData;
-          authError = retryError;
-        } else {
-          if (signUpError) authError = signUpError;
+      if (error) {
+        // Pesan error lebih ramah untuk email belum diverifikasi
+        if (error.message.toLowerCase().includes('email not confirmed')) {
+          throw new Error('Email kamu belum diverifikasi. Silakan cek kotak masuk (atau folder Spam) dan klik link verifikasi yang dikirim saat daftar.');
         }
+        throw error;
       }
 
-      if (authError) throw authError;
-      if (!authData || !authData.user || !authData.session) {
+      if (!data.user || !data.session) {
         throw new Error('Gagal memproses session login.');
       }
 
       const userData = {
-        id: authData.user.id,
-        name: authData.user.user_metadata?.full_name || email.trim().split('@')[0],
-        email: authData.user.email,
+        id: data.user.id,
+        name: data.user.user_metadata?.full_name || email.trim().split('@')[0],
+        email: data.user.email,
         tier: 'Free',
       };
 
-      // Semua akun non-admin → role user, langsung ke dashboard
-      login(userData, authData.session.access_token, 'user');
+      login(userData, data.session.access_token, 'user');
       navigate('/dashboard');
     } catch (err: any) {
       setErrorMsg(err.message || 'Gagal masuk. Periksa kembali email dan kata sandi Anda.');
