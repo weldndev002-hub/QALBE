@@ -88,7 +88,7 @@ export default function RegisterPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full bg-white border border-neutral-200 rounded-2xl py-3.5 pl-11 pr-4 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-400 outline-none transition-all"
-                  placeholder="Ukhti"
+                  placeholder="Nama Panggilan"
                 />
               </div>
             </div>
@@ -105,7 +105,7 @@ export default function RegisterPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-white border border-neutral-200 rounded-2xl py-3.5 pl-11 pr-4 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-400 outline-none transition-all"
-                  placeholder="ukhti@email.com"
+                  placeholder="nama@email.com"
                 />
               </div>
             </div>

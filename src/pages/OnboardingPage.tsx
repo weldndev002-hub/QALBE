@@ -18,22 +18,22 @@ const times = [
 ];
 
 export default function OnboardingPage() {
+  const { login, user } = useAuthStore() as any;
+  const navigate = useNavigate();
+
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
-    nickname: '',
+    nickname: user?.name && user?.name !== 'Sobat' ? user.name : '',
     goals: [] as string[],
     activeTime: ''
   });
-  
-  const navigate = useNavigate();
-  const login = useAuthStore((state: any) => state.login);
 
   const handleNext = () => {
     if (currentStep < 3) {
       setCurrentStep((c) => c + 1);
     } else {
       // Simulasikan login & simpan data onboarding
-      login({ name: formData.nickname || 'Ukhti', tier: 'premium' }, 'dummy-jwt-token');
+      login({ name: formData.nickname || 'Sobat', tier: 'premium' }, 'dummy-jwt-token');
       navigate('/dashboard');
     }
   };

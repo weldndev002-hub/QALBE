@@ -29,7 +29,7 @@ export default function ChatPage() {
       sendMessage({
         id: Date.now().toString(),
         role: 'assistant',
-        content: `Assalamu'alaikum, ${user?.name || 'Ukhti'}. Aku Qalbie, teman curhatmu hari ini. Ada yang ingin kamu ceritakan atau rasakan saat ini? Jangan khawatir, obrolan ini aman dan rahasia.`,
+        content: `Assalamu'alaikum, ${user?.name || 'Sobat'}. Aku Qalbie, teman curhatmu hari ini. Ada yang ingin kamu ceritakan atau rasakan saat ini? Jangan khawatir, obrolan ini aman dan rahasia.`,
         timestamp: new Date().toISOString()
       });
     }

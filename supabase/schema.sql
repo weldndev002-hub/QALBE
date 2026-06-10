@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS features (
   key         TEXT UNIQUE NOT NULL,          -- e.g. 'chat_ai_basic'
   label       TEXT NOT NULL,                 -- e.g. 'Chat AI Basic'
   description TEXT,
+  category    TEXT DEFAULT 'access',         -- e.g. 'access', 'limits', 'support'
+  input_type  TEXT DEFAULT 'toggle',         -- e.g. 'toggle', 'number', 'text'
+  is_active   BOOLEAN DEFAULT TRUE,          -- aktif/nonaktif
   sort_order  INTEGER DEFAULT 0,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
@@ -253,6 +256,60 @@ CREATE OR REPLACE FUNCTION public.delete_user_account()
 RETURNS void AS $$
 BEGIN
   -- Hapus dari auth.users (Tabel publik yang memiliki referensi ON DELETE CASCADE akan otomatis terhapus)
-  DELETE FROM auth.users WHERE id = auth.uid();
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- 11. Storage RLS Policies (Bucket "Profile")
+-- ============================================================
+-- Pastikan bucket "Profile" sudah dibuat secara manual di dashboard, atau 
+-- gunakan SQL insert ini untuk membuatnya secara otomatis jika belum ada:
+INSERT INTO storage.buckets (id, name, public) VALUES ('Profile', 'Profile', true) ON CONFLICT DO NOTHING;
+
+-- Kebijakan RLS agar gambar bisa dilihat secara publik
+DROP POLICY IF EXISTS "Avatar Public Access" ON storage.objects;
+CREATE POLICY "Avatar Public Access"
+ON storage.objects FOR SELECT
+USING ( bucket_id = 'Profile' );
+
+-- Kebijakan agar user yang login bisa mengunggah file baru
+DROP POLICY IF EXISTS "User can upload avatar" ON storage.objects;
+CREATE POLICY "User can upload avatar"
+ON storage.objects FOR INSERT
+WITH CHECK ( bucket_id = 'Profile' AND auth.role() = 'authenticated' );
+
+-- Kebijakan agar user bisa menimpa/update fotonya sendiri
+DROP POLICY IF EXISTS "User can update own avatar" ON storage.objects;
+CREATE POLICY "User can update own avatar"
+ON storage.objects FOR UPDATE
+USING ( bucket_id = 'Profile' AND auth.uid() = owner );
+
+-- Kebijakan agar user bisa menghapus fotonya sendiri
+DROP POLICY IF EXISTS "User can delete own avatar" ON storage.objects;
+CREATE POLICY "User can delete own avatar"
+ON storage.objects FOR DELETE
+USING ( bucket_id = 'Profile' AND auth.uid() = owner );
+
+-- ============================================================
+-- 12. Tabel Pengaturan Aplikasi (app_settings)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public read app_settings" ON public.app_settings;
+CREATE POLICY "Public read app_settings" ON public.app_settings FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Service insert/update app_settings" ON public.app_settings;
+CREATE POLICY "Service insert/update app_settings" ON public.app_settings FOR ALL USING (true);
+
+INSERT INTO public.app_settings (key, value)
+VALUES
+  ('support_email', 'support@qalbie.id'),
+  ('support_whatsapp', 'https://wa.me/6281234567890')
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+

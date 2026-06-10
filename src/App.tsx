@@ -5,20 +5,22 @@ import { supabase } from './lib/supabase';
 import { getCurrentUserRole } from './services/adminService';
 
 function App() {
-  const { login, logout } = useAuthStore() as any;
+  const { login, logout, role: currentRole } = useAuthStore() as any;
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         if (session?.user) {
-          const role = await getCurrentUserRole(session.user);
+          const dbRole = await getCurrentUserRole(session.user);
+          const finalRole = dbRole || currentRole || 'user';
+          
           const userData = {
             id: session.user.id,
             email: session.user.email,
-            name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Ukhti',
+            name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Sobat',
             avatar: session.user.user_metadata?.avatar_url,
           };
-          login(userData, session.access_token, role);
+          login(userData, session.access_token, finalRole);
         }
       } else if (event === 'SIGNED_OUT') {
         logout();

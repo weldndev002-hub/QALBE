@@ -98,7 +98,18 @@ const MOCK_STORAGE_KEYS = {
   MEMBERSHIPS: 'qalbie_mock_memberships',
   HISTORY: 'qalbie_mock_history',
   ROLES: 'qalbie_mock_roles',
-  FEATURES: 'qalbie_mock_features'
+  FEATURES: 'qalbie_mock_features',
+  SETTINGS: 'qalbie_mock_settings'
+};
+
+export interface AppSettings {
+  support_email: string;
+  support_whatsapp: string;
+}
+
+const DEFAULT_MOCK_SETTINGS: AppSettings = {
+  support_email: 'support@qalbie.id',
+  support_whatsapp: 'https://wa.me/6281234567890'
 };
 
 const DEFAULT_MOCK_TIERS: MembershipTier[] = [
@@ -149,23 +160,75 @@ function setLocalData<T>(key: string, value: T): void {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+let isOfflineMode = typeof window !== 'undefined' ? sessionStorage.getItem('qalbie_offline') === 'true' : false;
+
+function setOfflineMode(value: boolean) {
+  isOfflineMode = value;
+  if (typeof window !== 'undefined') {
+    sessionStorage.setItem('qalbie_offline', value ? 'true' : 'false');
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms = 2000): Promise<T> {
+  if (isOfflineMode) {
+    return Promise.reject(new Error('Offline mode active'));
+  }
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => {
+      setOfflineMode(true);
+      console.warn("Supabase timeout detected. Switching to offline mode.");
+      reject(new Error('Timeout'));
+    }, ms)
+  );
+  return Promise.race([promise, timeout]).catch(err => {
+    setOfflineMode(true);
+    throw err;
+  });
+}
+
+async function runSupabase<T>(fn: () => Promise<T>, ms = 2000): Promise<T> {
+  if (isOfflineMode) {
+    throw new Error('Offline mode active');
+  }
+  return withTimeout(fn(), ms);
+}
+
 // ─────────────────────────────────────────────
 // ROLE CHECK
 // ─────────────────────────────────────────────
 
 export async function getCurrentUserRole(userObj?: any): Promise<UserRole | null> {
-  let user = userObj;
-  if (!user) {
-    const { data } = await supabase.auth.getSession();
-    user = data.session?.user;
-  }
-  if (!user) return null;
+  const fetchRole = async (): Promise<UserRole | null> => {
+    let user = userObj;
+    if (!user) {
+      const { data } = await supabase.auth.getSession();
+      user = data.session?.user;
+    }
+    if (!user) return null;
 
-  const emailLower = user.email?.toLowerCase() || '';
-  if (emailLower === 'carx2254@gmail.com') {
-    return 'super_admin';
-  }
-  return 'user';
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+        
+      if (data && data.role) {
+        return data.role as UserRole;
+      }
+    } catch (e) {
+      console.error('Error fetching user role:', e);
+    }
+
+    const emailLower = user.email?.toLowerCase() || '';
+    if (emailLower === 'carx2254@gmail.com') {
+      return 'super_admin';
+    }
+    
+    return 'user';
+  };
+
+  return withTimeout(fetchRole(), 2000).catch(() => null);
 }
 
 export async function isSuperAdmin(): Promise<boolean> {
@@ -183,42 +246,51 @@ export async function getAdminStats(): Promise<AdminStats> {
     const in7Days = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
-    const [totalRes, activeRes, expiringRes, newRes, tiersRes] = await Promise.all([
-      supabase.from('profiles').select('id', { count: 'exact', head: true }),
-      supabase.from('user_memberships').select('id', { count: 'exact', head: true })
-        .eq('status', 'active')
-        .in('tier_id', await getTierIdsByLevel([1, 2, 3])),
-      supabase.from('user_memberships').select('id', { count: 'exact', head: true })
-        .eq('status', 'active')
-        .gte('expires_at', now)
-        .lte('expires_at', in7Days),
-      supabase.from('profiles').select('id', { count: 'exact', head: true })
-        .gte('created_at', startOfMonth),
-      supabase.from('membership_tiers').select('id, name, slug').eq('is_active', true)
-    ]);
+    const fetchStats = async () => {
+      const tierIds = await getTierIdsByLevel([1, 2, 3]);
+      
+      const [totalRes, activeRes, expiringRes, newRes, tiersRes] = await Promise.all([
+        supabase.from('profiles').select('id', { count: 'exact', head: true }),
+        supabase.from('user_memberships').select('id', { count: 'exact', head: true })
+          .eq('status', 'active')
+          .in('tier_id', tierIds),
+        supabase.from('user_memberships').select('id', { count: 'exact', head: true })
+          .eq('status', 'active')
+          .gte('expires_at', now)
+          .lte('expires_at', in7Days),
+        supabase.from('profiles').select('id', { count: 'exact', head: true })
+          .gte('created_at', startOfMonth),
+        supabase.from('membership_tiers').select('id, name, slug').eq('is_active', true)
+      ]);
 
-    if (totalRes.error || activeRes.error || expiringRes.error || newRes.error || tiersRes.error) {
-      throw new Error("Supabase tables missing or error");
-    }
+      if (totalRes.error || activeRes.error || expiringRes.error || newRes.error || tiersRes.error) {
+        throw new Error("Supabase tables missing or error");
+      }
 
-    const tierCounts = await Promise.all(
-      (tiersRes.data || []).map(async (tier) => {
-        const { count } = await supabase
-          .from('user_memberships')
-          .select('id', { count: 'exact', head: true })
-          .eq('tier_id', tier.id)
-          .eq('status', 'active');
-        return { tier: tier.name, count: count || 0 };
-      })
-    );
+      const tierCounts = await Promise.all(
+        (tiersRes.data || []).map(async (tier) => {
+          const { count } = await supabase
+            .from('user_memberships')
+            .select('id', { count: 'exact', head: true })
+            .eq('tier_id', tier.id)
+            .eq('status', 'active');
+          return { tier: tier.name, count: count || 0 };
+        })
+      );
 
-    return {
-      totalMembers: totalRes.count || 0,
-      activePremium: activeRes.count || 0,
-      expiringIn7Days: expiringRes.count || 0,
-      newThisMonth: newRes.count || 0,
-      membersByTier: tierCounts,
+      return {
+        totalMembers: totalRes.count || 0,
+        activePremium: activeRes.count || 0,
+        expiringIn7Days: expiringRes.count || 0,
+        newThisMonth: newRes.count || 0,
+        membersByTier: tierCounts,
+      };
     };
+
+    // Timeout 3 detik untuk query Supabase
+    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000));
+    
+    return await Promise.race([fetchStats(), timeoutPromise]);
   } catch (e) {
     // LOCAL STORAGE FALLBACK
     const profiles = getLocalData<Profile[]>(MOCK_STORAGE_KEYS.PROFILES, DEFAULT_MOCK_PROFILES);
@@ -275,35 +347,39 @@ export async function getMembers(filters?: {
   status?: MemberStatus;
 }): Promise<MemberWithDetails[]> {
   try {
-    let query = supabase
-      .from('profiles')
-      .select(`
-        *,
-        user_roles(role),
-        user_memberships(
+    const fetchMembers = async () => {
+      let query = supabase
+        .from('profiles')
+        .select(`
           *,
-          membership_tiers(*)
-        )
-      `)
-      .order('created_at', { ascending: false });
+          user_roles(role),
+          user_memberships(
+            *,
+            membership_tiers(*)
+          )
+        `)
+        .order('created_at', { ascending: false });
 
-    if (filters?.search) {
-      query = query.or(`full_name.ilike.%${filters.search}%`);
-    }
+      if (filters?.search) {
+        query = query.or(`full_name.ilike.%${filters.search}%`);
+      }
 
-    const { data, error } = await query;
-    if (error) throw error;
+      const { data, error } = await query;
+      if (error) throw error;
 
-    return (data || []).map((p: any) => ({
-      ...p,
-      role: p.user_roles?.[0]?.role || 'user',
-      membership: p.user_memberships?.[0]
-        ? {
-            ...p.user_memberships[0],
-            tier: p.user_memberships[0].membership_tiers,
-          }
-        : undefined,
-    }));
+      return (data || []).map((p: any) => ({
+        ...p,
+        role: p.user_roles?.[0]?.role || 'user',
+        membership: p.user_memberships?.[0]
+          ? {
+              ...p.user_memberships[0],
+              tier: p.user_memberships[0].membership_tiers,
+            }
+          : undefined,
+      }));
+    };
+
+    return await withTimeout(fetchMembers(), 2500);
   } catch (e) {
     // LOCAL STORAGE FALLBACK
     let profiles = getLocalData<Profile[]>(MOCK_STORAGE_KEYS.PROFILES, DEFAULT_MOCK_PROFILES);
@@ -441,37 +517,39 @@ export async function updateMemberTier(
   changeType: ChangeType = 'manual'
 ): Promise<void> {
   try {
-    const { data: currentMembership } = await supabase
-      .from('user_memberships')
-      .select('tier_id, id')
-      .eq('user_id', userId)
-      .single();
+    await runSupabase(async () => {
+      const { data: currentMembership } = await supabase
+        .from('user_memberships')
+        .select('tier_id, id')
+        .eq('user_id', userId)
+        .single();
 
-    const expiresAt = durationMonths
-      ? new Date(Date.now() + durationMonths * 30 * 24 * 60 * 60 * 1000).toISOString()
-      : null;
+      const expiresAt = durationMonths
+        ? new Date(Date.now() + durationMonths * 30 * 24 * 60 * 60 * 1000).toISOString()
+        : null;
 
-    const { error: upsertError } = await supabase
-      .from('user_memberships')
-      .upsert({
+      const { error: upsertError } = await supabase
+        .from('user_memberships')
+        .upsert({
+          user_id: userId,
+          tier_id: tierId,
+          status: 'active',
+          started_at: new Date().toISOString(),
+          expires_at: expiresAt,
+          notes,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+
+      if (upsertError) throw upsertError;
+
+      await supabase.from('membership_history').insert({
         user_id: userId,
-        tier_id: tierId,
-        status: 'active',
-        started_at: new Date().toISOString(),
-        expires_at: expiresAt,
-        notes,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
-
-    if (upsertError) throw upsertError;
-
-    await supabase.from('membership_history').insert({
-      user_id: userId,
-      from_tier_id: currentMembership?.tier_id || null,
-      to_tier_id: tierId,
-      changed_by: adminId,
-      change_type: changeType,
-      reason: notes,
+        from_tier_id: currentMembership?.tier_id || null,
+        to_tier_id: tierId,
+        changed_by: adminId,
+        change_type: changeType,
+        reason: notes,
+      });
     });
   } catch (e) {
     const memberships = getLocalData<UserMembership[]>(MOCK_STORAGE_KEYS.MEMBERSHIPS, DEFAULT_MOCK_MEMBERSHIPS);
@@ -521,26 +599,28 @@ export async function updateMemberTier(
 
 export async function suspendMember(userId: string, adminId: string, reason: string): Promise<void> {
   try {
-    const { data: current } = await supabase
-      .from('user_memberships')
-      .select('tier_id')
-      .eq('user_id', userId)
-      .single();
+    await runSupabase(async () => {
+      const { data: current } = await supabase
+        .from('user_memberships')
+        .select('tier_id')
+        .eq('user_id', userId)
+        .single();
 
-    const { error } = await supabase
-      .from('user_memberships')
-      .update({ status: 'suspended', notes: reason, updated_at: new Date().toISOString() })
-      .eq('user_id', userId);
+      const { error } = await supabase
+        .from('user_memberships')
+        .update({ status: 'suspended', notes: reason, updated_at: new Date().toISOString() })
+        .eq('user_id', userId);
 
-    if (error) throw error;
+      if (error) throw error;
 
-    await supabase.from('membership_history').insert({
-      user_id: userId,
-      from_tier_id: current?.tier_id || null,
-      to_tier_id: current?.tier_id || null,
-      changed_by: adminId,
-      change_type: 'suspension',
-      reason,
+      await supabase.from('membership_history').insert({
+        user_id: userId,
+        from_tier_id: current?.tier_id || null,
+        to_tier_id: current?.tier_id || null,
+        changed_by: adminId,
+        change_type: 'suspension',
+        reason,
+      });
     });
   } catch (e) {
     const memberships = getLocalData<UserMembership[]>(MOCK_STORAGE_KEYS.MEMBERSHIPS, DEFAULT_MOCK_MEMBERSHIPS);
@@ -571,26 +651,28 @@ export async function suspendMember(userId: string, adminId: string, reason: str
 
 export async function activateMember(userId: string, adminId: string): Promise<void> {
   try {
-    const { data: current } = await supabase
-      .from('user_memberships')
-      .select('tier_id')
-      .eq('user_id', userId)
-      .single();
+    await runSupabase(async () => {
+      const { data: current } = await supabase
+        .from('user_memberships')
+        .select('tier_id')
+        .eq('user_id', userId)
+        .single();
 
-    const { error } = await supabase
-      .from('user_memberships')
-      .update({ status: 'active', updated_at: new Date().toISOString() })
-      .eq('user_id', userId);
+      const { error } = await supabase
+        .from('user_memberships')
+        .update({ status: 'active', updated_at: new Date().toISOString() })
+        .eq('user_id', userId);
 
-    if (error) throw error;
+      if (error) throw error;
 
-    await supabase.from('membership_history').insert({
-      user_id: userId,
-      from_tier_id: current?.tier_id || null,
-      to_tier_id: current?.tier_id || null,
-      changed_by: adminId,
-      change_type: 'activation',
-      reason: 'Diaktifkan oleh admin',
+      await supabase.from('membership_history').insert({
+        user_id: userId,
+        from_tier_id: current?.tier_id || null,
+        to_tier_id: current?.tier_id || null,
+        changed_by: adminId,
+        change_type: 'activation',
+        reason: 'Diaktifkan oleh admin',
+      });
     });
   } catch (e) {
     const memberships = getLocalData<UserMembership[]>(MOCK_STORAGE_KEYS.MEMBERSHIPS, DEFAULT_MOCK_MEMBERSHIPS);
@@ -620,8 +702,10 @@ export async function activateMember(userId: string, adminId: string): Promise<v
 
 export async function deleteMember(userId: string): Promise<void> {
   try {
-    const { error } = await supabase.from('profiles').delete().eq('id', userId);
-    if (error) throw error;
+    await runSupabase(async () => {
+      const { error } = await supabase.from('profiles').delete().eq('id', userId);
+      if (error) throw error;
+    });
   } catch (e) {
     let profiles = getLocalData<Profile[]>(MOCK_STORAGE_KEYS.PROFILES, DEFAULT_MOCK_PROFILES);
     let memberships = getLocalData<UserMembership[]>(MOCK_STORAGE_KEYS.MEMBERSHIPS, DEFAULT_MOCK_MEMBERSHIPS);
@@ -640,13 +724,16 @@ export async function deleteMember(userId: string): Promise<void> {
 
 export async function getTiers(): Promise<MembershipTier[]> {
   try {
-    const { data, error } = await supabase
-      .from('membership_tiers')
-      .select('*')
-      .order('level', { ascending: true });
+    const fetchTiers = async () => {
+      const { data, error } = await supabase
+        .from('membership_tiers')
+        .select('*')
+        .order('level', { ascending: true });
 
-    if (error) throw error;
-    return data || [];
+      if (error) throw error;
+      return data || [];
+    };
+    return await withTimeout(fetchTiers(), 2500);
   } catch (e) {
     return getLocalData<MembershipTier[]>(MOCK_STORAGE_KEYS.TIERS, DEFAULT_MOCK_TIERS);
   }
@@ -654,8 +741,10 @@ export async function getTiers(): Promise<MembershipTier[]> {
 
 export async function createTier(tier: Omit<MembershipTier, 'id' | 'created_at'>): Promise<void> {
   try {
-    const { error } = await supabase.from('membership_tiers').insert(tier);
-    if (error) throw error;
+    await runSupabase(async () => {
+      const { error } = await supabase.from('membership_tiers').insert(tier);
+      if (error) throw error;
+    });
   } catch (e) {
     const tiers = getLocalData<MembershipTier[]>(MOCK_STORAGE_KEYS.TIERS, DEFAULT_MOCK_TIERS);
     const newId = tiers.reduce((max, t) => t.id > max ? t.id : max, 0) + 1;
@@ -671,11 +760,13 @@ export async function createTier(tier: Omit<MembershipTier, 'id' | 'created_at'>
 
 export async function updateTier(id: number, tier: Partial<MembershipTier>): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('membership_tiers')
-      .update(tier)
-      .eq('id', id);
-    if (error) throw error;
+    await runSupabase(async () => {
+      const { error } = await supabase
+        .from('membership_tiers')
+        .update(tier)
+        .eq('id', id);
+      if (error) throw error;
+    });
   } catch (e) {
     const tiers = getLocalData<MembershipTier[]>(MOCK_STORAGE_KEYS.TIERS, DEFAULT_MOCK_TIERS);
     const idx = tiers.findIndex(t => t.id === id);
@@ -688,8 +779,10 @@ export async function updateTier(id: number, tier: Partial<MembershipTier>): Pro
 
 export async function deleteTier(id: number): Promise<void> {
   try {
-    const { error } = await supabase.from('membership_tiers').delete().eq('id', id);
-    if (error) throw error;
+    await runSupabase(async () => {
+      const { error } = await supabase.from('membership_tiers').delete().eq('id', id);
+      if (error) throw error;
+    });
   } catch (e) {
     let tiers = getLocalData<MembershipTier[]>(MOCK_STORAGE_KEYS.TIERS, DEFAULT_MOCK_TIERS);
     tiers = tiers.filter(t => t.id !== id);
@@ -699,11 +792,13 @@ export async function deleteTier(id: number): Promise<void> {
 
 export async function toggleTierStatus(id: number, isActive: boolean): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('membership_tiers')
-      .update({ is_active: isActive })
-      .eq('id', id);
-    if (error) throw error;
+    await runSupabase(async () => {
+      const { error } = await supabase
+        .from('membership_tiers')
+        .update({ is_active: isActive })
+        .eq('id', id);
+      if (error) throw error;
+    });
   } catch (e) {
     await updateTier(id, { is_active: isActive });
   }
@@ -715,13 +810,16 @@ export async function toggleTierStatus(id: number, isActive: boolean): Promise<v
 
 export async function getFeatures(): Promise<Feature[]> {
   try {
-    const { data, error } = await supabase
-      .from('features')
-      .select('*')
-      .order('sort_order', { ascending: true });
+    const fetchFeatures = async () => {
+      const { data, error } = await supabase
+        .from('features')
+        .select('*')
+        .order('sort_order', { ascending: true });
 
-    if (error) throw error;
-    return data || [];
+      if (error) throw error;
+      return data || [];
+    };
+    return await withTimeout(fetchFeatures(), 2500);
   } catch (e) {
     return getLocalData<Feature[]>(MOCK_STORAGE_KEYS.FEATURES, DEFAULT_MOCK_FEATURES);
   }
@@ -729,8 +827,10 @@ export async function getFeatures(): Promise<Feature[]> {
 
 export async function createFeature(feature: Omit<Feature, 'id' | 'created_at'>): Promise<void> {
   try {
-    const { error } = await supabase.from('features').insert(feature);
-    if (error) throw error;
+    await runSupabase(async () => {
+      const { error } = await supabase.from('features').insert(feature);
+      if (error) throw error;
+    });
   } catch (e) {
     const features = getLocalData<Feature[]>(MOCK_STORAGE_KEYS.FEATURES, DEFAULT_MOCK_FEATURES);
     const newId = features.reduce((max, f) => f.id > max ? f.id : max, 0) + 1;
@@ -746,11 +846,13 @@ export async function createFeature(feature: Omit<Feature, 'id' | 'created_at'>)
 
 export async function updateFeature(id: number, feature: Partial<Feature>): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('features')
-      .update(feature)
-      .eq('id', id);
-    if (error) throw error;
+    await runSupabase(async () => {
+      const { error } = await supabase
+        .from('features')
+        .update(feature)
+        .eq('id', id);
+      if (error) throw error;
+    });
   } catch (e) {
     const features = getLocalData<Feature[]>(MOCK_STORAGE_KEYS.FEATURES, DEFAULT_MOCK_FEATURES);
     const idx = features.findIndex(f => f.id === id);
@@ -763,8 +865,10 @@ export async function updateFeature(id: number, feature: Partial<Feature>): Prom
 
 export async function deleteFeature(id: number): Promise<void> {
   try {
-    const { error } = await supabase.from('features').delete().eq('id', id);
-    if (error) throw error;
+    await runSupabase(async () => {
+      const { error } = await supabase.from('features').delete().eq('id', id);
+      if (error) throw error;
+    });
   } catch (e) {
     let features = getLocalData<Feature[]>(MOCK_STORAGE_KEYS.FEATURES, DEFAULT_MOCK_FEATURES);
     features = features.filter(f => f.id !== id);
@@ -774,11 +878,13 @@ export async function deleteFeature(id: number): Promise<void> {
 
 export async function toggleFeatureStatus(id: number, isActive: boolean): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('features')
-      .update({ is_active: isActive })
-      .eq('id', id);
-    if (error) throw error;
+    await runSupabase(async () => {
+      const { error } = await supabase
+        .from('features')
+        .update({ is_active: isActive })
+        .eq('id', id);
+      if (error) throw error;
+    });
   } catch (e) {
     await updateFeature(id, { is_active: isActive });
   }
@@ -879,5 +985,44 @@ export async function getGrowthData(): Promise<{ date: string; count: number }[]
         count
       };
     });
+  }
+}
+
+// ─────────────────────────────────────────────
+// APP SETTINGS
+// ─────────────────────────────────────────────
+
+export async function getAppSettings(): Promise<AppSettings> {
+  try {
+    return await runSupabase(async () => {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('*');
+      if (error) throw error;
+      
+      const email = data?.find(s => s.key === 'support_email')?.value || 'support@qalbie.id';
+      const whatsapp = data?.find(s => s.key === 'support_whatsapp')?.value || 'https://wa.me/6281234567890';
+      return { support_email: email, support_whatsapp: whatsapp };
+    });
+  } catch (e) {
+    return getLocalData<AppSettings>(MOCK_STORAGE_KEYS.SETTINGS, DEFAULT_MOCK_SETTINGS);
+  }
+}
+
+export async function updateAppSettings(settings: AppSettings): Promise<void> {
+  try {
+    await runSupabase(async () => {
+      const { error: errorEmail } = await supabase
+        .from('app_settings')
+        .upsert({ key: 'support_email', value: settings.support_email });
+      if (errorEmail) throw errorEmail;
+
+      const { error: errorWa } = await supabase
+        .from('app_settings')
+        .upsert({ key: 'support_whatsapp', value: settings.support_whatsapp });
+      if (errorWa) throw errorWa;
+    });
+  } catch (e) {
+    setLocalData(MOCK_STORAGE_KEYS.SETTINGS, settings);
   }
 }

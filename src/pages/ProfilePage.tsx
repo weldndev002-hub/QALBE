@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
-import { getMemberDetail } from '../services/adminService';
+import { getMemberDetail, getAppSettings, AppSettings } from '../services/adminService';
 import { supabase } from '../lib/supabase';
 import { 
   Settings, 
@@ -25,7 +25,8 @@ import {
   ToggleLeft,
   ToggleRight,
   Info,
-  X
+  X,
+  Camera
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -36,6 +37,10 @@ export default function ProfilePage() {
 
   const [membershipDetail, setMembershipDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [appSettings, setAppSettings] = useState<AppSettings>({
+    support_email: 'support@qalbie.id',
+    support_whatsapp: 'https://wa.me/6281234567890'
+  });
 
   // State untuk Modal Profil
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -62,6 +67,74 @@ export default function ProfilePage() {
     autoRenew: true,
   });
 
+  // State Profile Photo Upload
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+    
+    setIsUploadingPhoto(true);
+    setCustomAlert(prev => ({ ...prev, isOpen: false }));
+    try {
+      // Validasi ukuran (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        throw new Error('Ukuran foto maksimal 2MB');
+      }
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      // Upload ke bucket "Profile"
+      const { error: uploadError } = await supabase.storage
+        .from('Profile')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Ambil Public URL
+      const { data: publicUrlData } = supabase.storage
+        .from('Profile')
+        .getPublicUrl(filePath);
+
+      const newAvatarUrl = publicUrlData.publicUrl;
+
+      // Update tabel profiles
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: newAvatarUrl })
+        .eq('id', user.id);
+        
+      if (dbError) throw dbError;
+
+      // Update auth user metadata
+      await supabase.auth.updateUser({
+        data: { avatar_url: newAvatarUrl }
+      });
+
+      // Update lokal store
+      login({ ...user, avatar: newAvatarUrl }, token, role);
+
+      setCustomAlert({
+        isOpen: true,
+        type: 'alert',
+        title: 'Berhasil',
+        message: 'Foto profil berhasil diperbarui!'
+      });
+      
+    } catch (err: any) {
+      setCustomAlert({
+        isOpen: true,
+        type: 'alert',
+        title: 'Gagal',
+        message: err.message || 'Gagal mengunggah foto profil'
+      });
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
   const handleToggle = (key: keyof typeof toggles) => {
     setToggles(prev => ({ ...prev, [key]: !prev[key] }));
   };
@@ -76,6 +149,8 @@ export default function ProfilePage() {
   }>({ isOpen: false, type: 'alert', title: '', message: '' });
 
   useEffect(() => {
+    getAppSettings().then(setAppSettings).catch(console.error);
+
     if (user?.id) {
       getMemberDetail(user.id).then((detail) => {
         if (detail?.membership?.tier) {
@@ -226,10 +301,36 @@ export default function ProfilePage() {
         <div className="relative z-10 max-w-md md:max-w-3xl mx-auto text-center">
           <h1 className="text-white font-display font-bold text-xl mb-6">Profil Saya</h1>
           
-          <div className="w-24 h-24 mx-auto bg-white rounded-full flex items-center justify-center shadow-xl shadow-primary-900/20 mb-4 border-4 border-primary-100/30 text-3xl font-display font-bold text-primary-600">
-            {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+          <div className="relative w-24 h-24 mx-auto mb-4 group">
+            <div className="w-full h-full bg-white rounded-full flex items-center justify-center shadow-xl shadow-primary-900/20 border-4 border-primary-100/30 text-3xl font-display font-bold text-primary-600 overflow-hidden">
+              {user?.avatar ? (
+                <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                user?.name ? user.name.charAt(0).toUpperCase() : 'S'
+              )}
+            </div>
+            
+            {/* Loading Overlay */}
+            {isUploadingPhoto && (
+              <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center">
+                <Loader2 size={24} className="text-white animate-spin" />
+              </div>
+            )}
+            
+            {/* Edit Button */}
+            {!isUploadingPhoto && (
+              <label className="absolute bottom-0 right-0 w-8 h-8 bg-white text-primary-600 rounded-full flex items-center justify-center shadow-lg border border-neutral-100 cursor-pointer hover:bg-neutral-50 transition-colors">
+                <Camera size={14} />
+                <input 
+                  type="file" 
+                  accept="image/png, image/jpeg, image/jpg" 
+                  className="hidden" 
+                  onChange={handlePhotoUpload}
+                />
+              </label>
+            )}
           </div>
-          <h2 className="text-2xl font-bold text-white mb-1">{user?.name || 'Ukhti'}</h2>
+          <h2 className="text-2xl font-bold text-white mb-1">{user?.name || 'Sobat'}</h2>
           
           <div className="inline-flex items-center gap-1.5 bg-primary-500/50 backdrop-blur-sm border border-primary-400/50 text-white px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wider">
             {activeTierName} Member
@@ -481,24 +582,24 @@ export default function ProfilePage() {
                     </div>
                     <div>
                       <h4 className="font-bold text-neutral-900 mb-1">Pusat Bantuan Qalbie</h4>
-                      <p className="text-sm text-neutral-600">Tim dukungan kami siap membantu menjawab pertanyaan Anda 24/7 (khusus Premium) atau pada jam kerja.</p>
+                      <p className="text-sm text-neutral-600">Tim dukungan kami siap membantu menjawab pertanyaan Anda</p>
                     </div>
                   </div>
                   
                   <div className="space-y-3">
-                    <a href="mailto:support@qalbie.id" className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 hover:border-primary-300 transition-colors">
+                    <a href={`mailto:${appSettings.support_email}`} className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 hover:border-primary-300 transition-colors">
                       <div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-500"><Mail size={16} /></div>
                       <div>
                         <p className="font-bold text-sm text-neutral-900">Email Support</p>
-                        <p className="text-xs text-neutral-500">support@qalbie.id</p>
+                        <p className="text-xs text-neutral-500">{appSettings.support_email}</p>
                       </div>
                     </a>
                     
-                    <a href="https://wa.me/6281234567890" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 hover:border-green-300 transition-colors">
+                    <a href={appSettings.support_whatsapp.startsWith('http') ? appSettings.support_whatsapp : `https://wa.me/${appSettings.support_whatsapp.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 hover:border-green-300 transition-colors">
                       <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center text-green-600"><Phone size={16} /></div>
                       <div>
                         <p className="font-bold text-sm text-neutral-900">WhatsApp Support</p>
-                        <p className="text-xs text-neutral-500">Tersedia untuk pengguna Pro & Premium</p>
+                        <p className="text-xs text-neutral-500">Hubungi tim kami kapan saja</p>
                       </div>
                     </a>
                   </div>

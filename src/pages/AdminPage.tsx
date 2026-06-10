@@ -5,29 +5,133 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
 import * as adminService from '../services/adminService';
+import Swal from 'sweetalert2';
+import 'sweetalert2/dist/sweetalert2.min.css';
+
+const swalCustom = Swal.mixin({
+  customClass: {
+    popup: 'rounded-[24px] font-sans p-6',
+    title: 'text-xl font-bold text-slate-850',
+    htmlContainer: 'text-sm text-neutral-500',
+    confirmButton: 'bg-[#7e3188] hover:bg-[#682870] text-white px-6 py-2.5 rounded-xl text-sm font-bold mx-1 transition-colors',
+    cancelButton: 'border border-neutral-200 text-neutral-600 px-6 py-2.5 rounded-xl text-sm font-bold mx-1 bg-white hover:bg-neutral-50 transition-colors'
+  },
+  buttonsStyling: false
+});
+
+const showSuccess = (title: string, text?: string) => {
+  return swalCustom.fire({
+    icon: 'success',
+    title,
+    text,
+    iconColor: '#7e3188'
+  });
+};
+
+const showError = (title: string, text?: string) => {
+  return swalCustom.fire({
+    icon: 'error',
+    title,
+    text,
+    iconColor: '#dc2626'
+  });
+};
+
+const showConfirm = (title: string, text?: string) => {
+  return swalCustom.fire({
+    icon: 'warning',
+    title,
+    text,
+    showCancelButton: true,
+    confirmButtonText: 'Ya, Lanjutkan',
+    cancelButtonText: 'Batal',
+    iconColor: '#eab308'
+  });
+};
 
 export default function AdminPage() {
   const navigate = useNavigate();
   const { logout, role, isAuthenticated } = useAuthStore() as any;
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-    } else if (role !== 'admin' && role !== 'super_admin') {
-      navigate('/dashboard');
-    } else {
-      setIsAuthorized(true);
-    }
-  }, [role, isAuthenticated, navigate]);
+    let isMounted = true;
+    const checkAuth = async () => {
+      try {
+        if (!isAuthenticated) {
+          if (isMounted) navigate('/login');
+          return;
+        }
+        
+        // Fast path: jika local role sudah admin, izinkan langsung render
+        if (role === 'admin' || role === 'super_admin') {
+          if (isMounted) {
+            setIsAuthorized(true);
+            setIsChecking(false);
+          }
+          return;
+        }
+        
+        // Timeout 2 detik untuk menghindari hanging jika supabase error
+        const rolePromise = adminService.getCurrentUserRole().catch(() => null);
+        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000));
+        
+        let actualRole = await Promise.race([rolePromise, timeoutPromise]);
+        
+        if (!isMounted) return;
+
+        if (actualRole === 'user' || !actualRole) {
+          if (role === 'admin' || role === 'super_admin') {
+            actualRole = role;
+          }
+        }
+
+        if (actualRole !== 'admin' && actualRole !== 'super_admin') {
+          navigate('/dashboard');
+        } else {
+          setIsAuthorized(true);
+        }
+      } catch (err) {
+        console.error("Auth check error:", err);
+        if (isMounted) {
+          if (role === 'admin' || role === 'super_admin') {
+            setIsAuthorized(true);
+          } else {
+            navigate('/dashboard');
+          }
+        }
+      } finally {
+        if (isMounted) setIsChecking(false);
+      }
+    };
+    checkAuth();
+    
+    return () => { isMounted = false; };
+  }, [isAuthenticated, role, navigate]);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  if (!isAuthorized) return <div className="flex h-screen items-center justify-center bg-slate-50 font-sans">Loading...</div>;
+  if (isChecking) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 font-sans flex-col gap-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <p className="text-neutral-500 text-sm">Memverifikasi akses Admin...</p>
+        <button 
+          onClick={() => { setIsChecking(false); setIsAuthorized(true); }}
+          className="mt-4 text-xs text-neutral-400 hover:text-[#7e3188] underline transition-colors"
+        >
+          Paksa Masuk (Bypass)
+        </button>
+      </div>
+    );
+  }
+  
+  if (!isAuthorized) return null;
 
   const menuItems = [
     { id: 'dashboard', label: 'Overview', icon: Activity },
@@ -202,11 +306,11 @@ function UsersTab() {
         notes || 'Manual update via admin dashboard',
         currentAdmin?.id || ''
       );
-      alert('Berhasil mengubah paket membership!');
+      showSuccess('Berhasil!', 'Berhasil mengubah paket membership!');
       setSelectedUser(null);
       fetchUsers();
     } catch (err: any) {
-      alert('Gagal mengubah paket: ' + err.message);
+      showError('Gagal!', 'Gagal mengubah paket: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -214,15 +318,16 @@ function UsersTab() {
 
   const handleSuspend = async () => {
     if (!selectedUser) return;
-    if (!confirm('Apakah anda yakin ingin men-suspend member ini?')) return;
+    const result = await showConfirm('Konfirmasi Suspend', 'Apakah anda yakin ingin men-suspend member ini?');
+    if (!result.isConfirmed) return;
     setActionLoading(true);
     try {
       await adminService.suspendMember(selectedUser.id, currentAdmin?.id || '', notes || 'Suspended by admin');
-      alert('Member berhasil di-suspend!');
+      showSuccess('Berhasil!', 'Member berhasil di-suspend!');
       setSelectedUser(null);
       fetchUsers();
     } catch (err: any) {
-      alert('Gagal men-suspend: ' + err.message);
+      showError('Gagal!', 'Gagal men-suspend: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -233,11 +338,11 @@ function UsersTab() {
     setActionLoading(true);
     try {
       await adminService.activateMember(selectedUser.id, currentAdmin?.id || '');
-      alert('Member berhasil diaktifkan kembali!');
+      showSuccess('Berhasil!', 'Member berhasil diaktifkan kembali!');
       setSelectedUser(null);
       fetchUsers();
     } catch (err: any) {
-      alert('Gagal mengaktifkan: ' + err.message);
+      showError('Gagal!', 'Gagal mengaktifkan: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -245,15 +350,19 @@ function UsersTab() {
 
   const handleDeleteMember = async () => {
     if (!selectedUser) return;
-    if (!confirm('PERINGATAN: Menghapus member akan menghapus semua profil dan data permanen. Lanjutkan?')) return;
+    const result = await showConfirm(
+      'Hapus Member',
+      'PERINGATAN: Menghapus member akan menghapus semua profil dan data permanen. Lanjutkan?'
+    );
+    if (!result.isConfirmed) return;
     setActionLoading(true);
     try {
       await adminService.deleteMember(selectedUser.id);
-      alert('Member berhasil dihapus!');
+      showSuccess('Berhasil!', 'Member berhasil dihapus!');
       setSelectedUser(null);
       fetchUsers();
     } catch (err: any) {
-      alert('Gagal menghapus member: ' + err.message);
+      showError('Gagal!', 'Gagal menghapus member: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -552,17 +661,18 @@ function PackagesTab() {
       await adminService.toggleTierStatus(pkg.id, !pkg.is_active);
       fetchPackages();
     } catch (e: any) {
-      alert('Gagal mengubah status paket: ' + e.message);
+      showError('Gagal!', 'Gagal mengubah status paket: ' + e.message);
     }
   };
 
   const handleDeletePkg = async (id: number) => {
-    if (!confirm('Apakah anda yakin ingin menghapus paket ini?')) return;
+    const result = await showConfirm('Hapus Paket', 'Apakah anda yakin ingin menghapus paket ini?');
+    if (!result.isConfirmed) return;
     try {
       await adminService.deleteTier(id);
       fetchPackages();
     } catch (e: any) {
-      alert('Gagal menghapus paket: ' + e.message);
+      showError('Gagal!', 'Gagal menghapus paket: ' + e.message);
     }
   };
 
@@ -584,15 +694,15 @@ function PackagesTab() {
 
       if (editingPackage.id) {
         await adminService.updateTier(editingPackage.id, payload);
-        alert('Berhasil memperbarui paket!');
+        showSuccess('Berhasil!', 'Berhasil memperbarui paket!');
       } else {
         await adminService.createTier(payload);
-        alert('Berhasil membuat paket baru!');
+        showSuccess('Berhasil!', 'Berhasil membuat paket baru!');
       }
       setEditingPackage(null);
       fetchPackages();
     } catch (e: any) {
-      alert('Gagal menyimpan paket: ' + e.message);
+      showError('Gagal!', 'Gagal menyimpan paket: ' + e.message);
     } finally {
       setActionLoading(false);
     }
@@ -861,17 +971,18 @@ function FeaturesTab() {
       await adminService.toggleFeatureStatus(f.id, !f.is_active);
       fetchFeatures();
     } catch (e: any) {
-      alert('Gagal mengubah status fitur: ' + e.message);
+      showError('Gagal!', 'Gagal mengubah status fitur: ' + e.message);
     }
   };
 
   const handleDeleteFeature = async (id: number) => {
-    if (!confirm('Apakah anda yakin ingin menghapus fitur master ini?')) return;
+    const result = await showConfirm('Hapus Fitur', 'Apakah anda yakin ingin menghapus fitur master ini?');
+    if (!result.isConfirmed) return;
     try {
       await adminService.deleteFeature(id);
       fetchFeatures();
     } catch (e: any) {
-      alert('Gagal menghapus fitur: ' + e.message);
+      showError('Gagal!', 'Gagal menghapus fitur: ' + e.message);
     }
   };
 
@@ -892,15 +1003,15 @@ function FeaturesTab() {
 
       if (editingFeature.id) {
         await adminService.updateFeature(editingFeature.id, payload);
-        alert('Berhasil memperbarui fitur!');
+        showSuccess('Berhasil!', 'Berhasil memperbarui fitur!');
       } else {
         await adminService.createFeature(payload);
-        alert('Berhasil menambahkan fitur baru!');
+        showSuccess('Berhasil!', 'Berhasil menambahkan fitur baru!');
       }
       setEditingFeature(null);
       fetchFeatures();
     } catch (e: any) {
-      alert('Gagal menyimpan fitur: ' + e.message);
+      showError('Gagal!', 'Gagal menyimpan fitur: ' + e.message);
     } finally {
       setActionLoading(false);
     }
@@ -929,26 +1040,19 @@ function FeaturesTab() {
             <thead>
               <tr className="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wider border-b border-neutral-200">
                 <th className="px-6 py-4 font-medium">Nama Fitur</th>
-                <th className="px-6 py-4 font-medium">Key</th>
-                <th className="px-6 py-4 font-medium">Tipe Input</th>
-                <th className="px-6 py-4 font-medium">Kategori</th>
                 <th className="px-6 py-4 font-medium">Status Global</th>
                 <th className="px-6 py-4 font-medium text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100 text-sm">
               {features.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-8 text-neutral-500">Belum ada master fitur.</td></tr>
+                <tr><td colSpan={3} className="text-center py-8 text-neutral-500">Belum ada master fitur.</td></tr>
               ) : (
                 features.map((f, i) => (
                   <tr key={i} className="hover:bg-neutral-50">
                     <td className="px-6 py-4">
                       <div className="font-bold text-neutral-800">{f.label}</div>
-                      {f.description && <div className="text-xs text-neutral-500">{f.description}</div>}
                     </td>
-                    <td className="px-6 py-4 font-mono text-xs text-neutral-600">{f.key}</td>
-                    <td className="px-6 py-4 capitalize text-neutral-600">{f.input_type}</td>
-                    <td className="px-6 py-4 capitalize text-neutral-600">{f.category}</td>
                     <td className="px-6 py-4">
                       <span className={clsx(
                         "px-2 py-1 rounded-md text-xs font-medium border", 
@@ -1008,83 +1112,29 @@ function FeaturesTab() {
               </div>
 
               <form onSubmit={handleSaveFeature} className="p-6 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-neutral-600 mb-1">Nama Label Fitur</label>
-                    <input 
-                      type="text" 
-                      required
-                      value={editingFeature.label || ''}
-                      onChange={(e) => setEditingFeature({ ...editingFeature, label: e.target.value })}
-                      placeholder="e.g. Akses API Premium"
-                      className="w-full bg-white border border-neutral-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-purple-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-neutral-600 mb-1">Key Fitur (Unique)</label>
-                    <input 
-                      type="text" 
-                      value={editingFeature.key || ''}
-                      onChange={(e) => setEditingFeature({ ...editingFeature, key: e.target.value })}
-                      placeholder="e.g. access_api_premium"
-                      className="w-full bg-white border border-neutral-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-purple-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs text-neutral-600 mb-1">Tipe Input</label>
-                    <select 
-                      value={editingFeature.input_type || 'toggle'}
-                      onChange={(e) => setEditingFeature({ ...editingFeature, input_type: e.target.value })}
-                      className="w-full bg-white border border-neutral-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-purple-500"
-                    >
-                      <option value="toggle">Toggle (On/Off)</option>
-                      <option value="number">Number (Input Angka)</option>
-                      <option value="text">Text (Isian String)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-neutral-600 mb-1">Kategori</label>
-                    <select 
-                      value={editingFeature.category || 'access'}
-                      onChange={(e) => setEditingFeature({ ...editingFeature, category: e.target.value })}
-                      className="w-full bg-white border border-neutral-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-purple-500"
-                    >
-                      <option value="access">Akses (Access)</option>
-                      <option value="limits">Batasan (Limits)</option>
-                      <option value="support">Bantuan (Support)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-neutral-600 mb-1">Sort Order</label>
-                    <input 
-                      type="number" 
-                      value={editingFeature.sort_order ?? 0}
-                      onChange={(e) => setEditingFeature({ ...editingFeature, sort_order: Number(e.target.value) })}
-                      className="w-full bg-white border border-neutral-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-purple-500"
-                    />
-                  </div>
-                </div>
-
                 <div>
-                  <label className="block text-xs text-neutral-600 mb-1">Deskripsi Fitur</label>
-                  <textarea 
-                    value={editingFeature.description || ''}
-                    onChange={(e) => setEditingFeature({ ...editingFeature, description: e.target.value })}
-                    className="w-full bg-white border border-neutral-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-purple-500 h-20"
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">Nama Fitur</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={editingFeature.label || ''}
+                    onChange={(e) => setEditingFeature({ ...editingFeature, label: e.target.value })}
+                    placeholder="Contoh: Akses Basic Chat AI"
+                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-sm focus:outline-none focus:border-purple-500 focus:bg-white transition-colors"
                   />
                 </div>
 
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-sm font-medium text-neutral-600">Aktifkan Fitur Langsung</span>
-                  <input 
-                    type="checkbox" 
-                    checked={editingFeature.is_active ?? true}
-                    onChange={(e) => setEditingFeature({ ...editingFeature, is_active: e.target.checked })}
-                    className="w-5 h-5 accent-purple-600 cursor-pointer"
-                  />
+                <div className="flex items-center justify-between bg-neutral-50 p-4 rounded-xl border border-neutral-200">
+                  <div>
+                    <span className="text-sm font-bold text-neutral-800 block">Status Fitur</span>
+                    <span className="text-xs text-neutral-500">Aktifkan untuk menampilkan fitur ini</span>
+                  </div>
+                  <div 
+                    onClick={() => setEditingFeature({ ...editingFeature, is_active: !(editingFeature.is_active ?? true) })}
+                    className={clsx("w-12 h-6 rounded-full relative cursor-pointer transition-colors duration-200 shrink-0", (editingFeature.is_active ?? true) ? "bg-[#7e3188]" : "bg-neutral-300")}
+                  >
+                    <div className={clsx("absolute top-1 bg-white w-4 h-4 rounded-full transition-all duration-200", (editingFeature.is_active ?? true) ? "right-1" : "left-1")}></div>
+                  </div>
                 </div>
 
                 <div className="flex gap-2 justify-end pt-4 border-t border-neutral-100">
@@ -1113,28 +1163,95 @@ function FeaturesTab() {
 }
 
 function SettingsTab() {
+  const [email, setEmail] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
+
+  useEffect(() => {
+    adminService.getAppSettings()
+      .then(data => {
+        setEmail(data.support_email);
+        setWhatsapp(data.support_whatsapp);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setLoading(false);
+      });
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setMessage({ type: '', text: '' });
+    try {
+      await adminService.updateAppSettings({ support_email: email, support_whatsapp: whatsapp });
+      setMessage({ type: 'success', text: 'Pengaturan berhasil diperbarui!' });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Gagal menyimpan pengaturan' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
       <h2 className="text-2xl font-bold text-neutral-900 mb-6">Pengaturan Platform</h2>
       
-      <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
-        <h3 className="text-lg font-bold text-neutral-900 mb-4">Pengaturan Umum</h3>
-        <div className="space-y-4 max-w-lg">
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">Nama Aplikasi</label>
-            <input type="text" defaultValue="QALBIE" className="w-full border border-neutral-200 rounded-xl px-4 py-2 focus:outline-none focus:border-purple-500 bg-purple-50" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">Email Support</label>
-            <input type="email" defaultValue="support@qalbie.com" className="w-full border border-neutral-200 rounded-xl px-4 py-2 focus:outline-none focus:border-purple-500 bg-purple-50" />
-          </div>
-          <div className="pt-4">
-            <button className="bg-[#7e3188] hover:bg-[#682870] text-white px-6 py-2.5 rounded-xl font-bold shadow-sm transition-all">
-              Simpan Pengaturan
-            </button>
-          </div>
+      {loading ? (
+        <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div></div>
+      ) : (
+        <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm max-w-xl">
+          <h3 className="text-lg font-bold text-slate-800 mb-4">Pusat Bantuan & Dukungan</h3>
+          
+          {message.text && (
+            <div className={clsx(
+              "p-4 rounded-xl mb-4 text-sm font-semibold border",
+              message.type === 'success' ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800"
+            )}>
+              {message.text}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-neutral-700 mb-1.5 uppercase tracking-wider pl-1">Email Support</label>
+              <input 
+                type="email" 
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Contoh: support@qalbie.id"
+                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl p-3.5 text-sm focus:outline-none focus:border-purple-500 focus:bg-white transition-all duration-200" 
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-neutral-700 mb-1.5 uppercase tracking-wider pl-1">Link / Nomor WhatsApp Support</label>
+              <input 
+                type="text" 
+                required
+                value={whatsapp}
+                onChange={(e) => setWhatsapp(e.target.value)}
+                placeholder="Contoh: https://wa.me/6281234567890 atau 6281234567890"
+                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl p-3.5 text-sm focus:outline-none focus:border-purple-500 focus:bg-white transition-all duration-200" 
+              />
+              <span className="text-[10px] text-neutral-400 pl-1 mt-1 block">Masukkan link WhatsApp lengkap atau nomor telepon dengan kode negara (contoh: 62812xxx)</span>
+            </div>
+            
+            <div className="pt-4 border-t border-neutral-100 flex justify-end">
+              <button 
+                type="submit" 
+                disabled={saving}
+                className="bg-[#7e3188] hover:bg-[#682870] disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-bold shadow-sm transition-all"
+              >
+                {saving ? 'Menyimpan...' : 'Simpan Pengaturan'}
+              </button>
+            </div>
+          </form>
         </div>
-      </div>
+      )}
     </motion.div>
   );
 }

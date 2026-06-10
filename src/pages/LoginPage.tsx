@@ -71,88 +71,84 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-primary-100 font-sans relative overflow-hidden">
-      {/* Background Shapes */}
-      <div className="absolute top-[-10%] left-[-20%] w-[150%] h-[40%] bg-primary-400 rounded-[100%] opacity-80" style={{ borderBottomLeftRadius: '50%', borderBottomRightRadius: '100%' }}></div>
-      <div className="absolute top-[-15%] right-[-10%] w-[80%] h-[35%] bg-primary-400 rounded-full opacity-80"></div>
-      
-      <div className="absolute bottom-[-10%] left-[-20%] w-[80%] h-[30%] bg-primary-400 rounded-full opacity-80"></div>
-      <div className="absolute bottom-[-15%] right-[-20%] w-[100%] h-[40%] bg-primary-400 rounded-[100%] opacity-80" style={{ borderTopLeftRadius: '100%' }}></div>
+    <div className="flex flex-col min-h-screen bg-[#FFF5F8] font-sans relative overflow-hidden">
+      {/* Soft Background Blobs */}
+      <div className="absolute top-[-10%] left-[-20%] w-[80vw] h-[80vw] max-w-[500px] max-h-[500px] bg-pink-300/20 rounded-full blur-3xl opacity-60"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] max-w-[400px] max-h-[400px] bg-purple-300/20 rounded-full blur-3xl opacity-60"></div>
 
       <main className="flex-1 w-full max-w-md mx-auto px-8 flex flex-col justify-center relative z-10 pt-12 pb-20">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center">
           
-          {/* Logo */}
-          <div className="flex items-center justify-center mb-10 relative">
-            <div className="relative flex items-center justify-center text-primary-600">
-               <img src="/LOGO%20SVG/QALBIE%20VERTIKAL%20PINK.svg" alt="Qalbie Logo" className="h-16" />
-            </div>
+          <div className="flex flex-col items-center text-center mb-10 w-full">
+            <h1 className="text-3xl font-display font-extrabold text-[#1E293B] mb-3 leading-tight">
+              Masuk dan temukan <br/>
+              <span className="text-[#FF5D8F]">ketenanganmu</span>
+            </h1>
+            <p className="text-slate-500 font-medium text-sm">Masuk untuk melanjutkan perjalanan bersama Qalbie</p>
           </div>
 
           {errorMsg && (
-            <div className="w-full mb-6 bg-red-50/90 border border-red-200 text-red-600 px-4 py-3 rounded-2xl text-sm font-medium z-10 backdrop-blur-sm shadow-sm">
+            <div className="w-full mb-6 bg-red-50 border border-red-100 text-red-500 px-4 py-3 rounded-2xl text-sm font-medium shadow-sm">
               {errorMsg}
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="w-full space-y-5">
+          <form onSubmit={handleLogin} className="w-full space-y-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-900 mb-2 pl-2">Email/Nomor Telepon</label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-neutral-300">
-                  <Mail size={20} fill="currentColor" className="text-neutral-300" />
+                <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400">
+                  <Mail size={20} />
                 </div>
                 <input 
                   type="text" 
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-white rounded-full py-3.5 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-[#7e3188]/30 transition-all font-medium text-neutral-800"
-                  placeholder=""
+                  className="w-full bg-white rounded-full py-4 pl-14 pr-6 focus:outline-none focus:ring-2 focus:ring-[#FF5D8F]/50 transition-all font-medium text-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] placeholder:text-slate-400"
+                  placeholder="Email atau Nomor Telepon"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-900 mb-2 pl-2">Kata Sandi</label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-neutral-300">
-                  <Lock size={20} fill="currentColor" className="text-neutral-300" />
+                <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400">
+                  <Lock size={20} />
                 </div>
                 <input 
                   type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-white rounded-full py-3.5 pl-12 pr-12 focus:outline-none focus:ring-2 focus:ring-[#7e3188]/30 transition-all font-medium text-neutral-800"
-                  placeholder=""
+                  className="w-full bg-white rounded-full py-4 pl-14 pr-14 focus:outline-none focus:ring-2 focus:ring-[#FF5D8F]/50 transition-all font-medium text-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] placeholder:text-slate-400"
+                  placeholder="Kata Sandi"
                 />
                 <button 
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-neutral-300 hover:text-neutral-500 transition-colors"
+                  className="absolute inset-y-0 right-0 pr-5 flex items-center text-slate-400 hover:text-[#FF5D8F] transition-colors"
                 >
-                  {showPassword ? <Eye size={22} /> : <EyeOff size={22} />}
+                  {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
                 </button>
               </div>
             </div>
 
-            <div className="text-center pt-2">
-              <Link to="#" className="text-sm font-bold text-neutral-900 hover:underline">Lupa Kata Sandi?</Link>
+            <div className="text-right pt-1 pb-4">
+              <Link to="#" className="text-sm font-bold text-slate-500 hover:text-[#FF5D8F] transition-colors">Lupa Kata Sandi?</Link>
             </div>
 
             <button 
               type="submit" 
               disabled={isLoading}
-              className="w-full bg-[#7e3188] text-white font-semibold text-lg py-3.5 rounded-full mt-4 hover:bg-[#682870] transition-colors shadow-md disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full bg-[#FF5D8F] text-white font-bold text-[17px] py-4 rounded-full hover:bg-[#F04A7D] transition-all shadow-[0_8px_20px_rgba(255,93,143,0.3)] disabled:opacity-70 disabled:cursor-not-allowed transform active:scale-[0.98]"
             >
               {isLoading ? 'Memproses...' : 'Masuk'}
             </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-neutral-900">
-              Tidak Memiliki Akun? <Link to="/register" className="font-bold hover:underline">Daftar sekarang</Link>
+          <div className="mt-8 text-center">
+            <p className="text-sm font-medium text-slate-500">
+              Belum punya akun? <Link to="/register" className="font-bold text-[#FF5D8F] hover:underline">Daftar sekarang</Link>
             </p>
           </div>
         </motion.div>
