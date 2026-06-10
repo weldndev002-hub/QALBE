@@ -18,7 +18,7 @@ const times = [
 ];
 
 export default function OnboardingPage() {
-  const { login, user } = useAuthStore() as any;
+  const { login, user, token } = useAuthStore() as any;
   const navigate = useNavigate();
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -32,8 +32,11 @@ export default function OnboardingPage() {
     if (currentStep < 3) {
       setCurrentStep((c) => c + 1);
     } else {
-      // Simulasikan login & simpan data onboarding
-      login({ name: formData.nickname || 'Sobat', tier: 'premium' }, 'dummy-jwt-token');
+      // Simulasikan login & simpan data onboarding dengan menjaga info user lama (terutama email dan id)
+      login({ 
+        ...user, 
+        name: formData.nickname || user?.name || 'Sobat'
+      }, token || 'dummy-jwt-token');
       navigate('/dashboard');
     }
   };

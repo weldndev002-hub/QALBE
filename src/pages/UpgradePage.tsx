@@ -7,7 +7,7 @@ import { useAuthStore } from '../store/authStore';
 
 export default function UpgradePage() {
   const navigate = useNavigate();
-  const { user, login } = useAuthStore() as any;
+  const { user, login, token } = useAuthStore() as any;
   const [isProcessing, setIsProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
@@ -46,7 +46,7 @@ export default function UpgradePage() {
       setIsProcessing(false);
       setSuccess(true);
       // Update akun lokal menjadi premium/basic
-      login({ ...user, tier: planId }, 'dummy-jwt-token');
+      login({ ...user, tier: planId }, token || 'dummy-jwt-token');
       
       // Arahkan ke dashboard setelah 2 detik
       setTimeout(() => {
