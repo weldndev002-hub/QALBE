@@ -39,10 +39,17 @@ export default function RegisterPage() {
       if (data.session) {
         // Jika auto-login setelah register
         login({ name: name, email: email, tier: 'Free' }, data.session.access_token);
-        navigate('/onboarding');
+        
+        // 1. Coba otomatis redirect kembali ke aplikasi Qalbie
+        window.location.href = "qalbie://login";
+        
+        // 2. Fallback: jika ternyata di-buka dari browser laptop biasa, lanjut ke onboarding web
+        setTimeout(() => {
+          navigate('/onboarding');
+        }, 2000);
       } else {
         // Jika perlu verifikasi email
-        setSuccessMsg('Registrasi berhasil! Silakan cek kotak masuk email Anda untuk verifikasi.');
+        setSuccessMsg('Registrasi berhasil! Silakan cek email Anda lalu klik tombol di bawah untuk kembali ke aplikasi.');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Terjadi kesalahan saat mendaftar.');
@@ -70,8 +77,16 @@ export default function RegisterPage() {
             </div>
           )}
           {successMsg && (
-            <div className="mb-6 bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-xl text-sm font-medium">
-              {successMsg}
+            <div className="mb-6 flex flex-col gap-3">
+              <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-xl text-sm font-medium">
+                {successMsg}
+              </div>
+              <a 
+                href="qalbie://login"
+                className="w-full text-center bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition-colors"
+              >
+                Buka di Aplikasi Qalbie
+              </a>
             </div>
           )}
 

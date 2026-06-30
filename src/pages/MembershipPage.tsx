@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -394,8 +394,10 @@ export default function MembershipPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successOrderId, setSuccessOrderId] = useState('');
   const [activeTierId, setActiveTierId] = useState<number | undefined>(undefined);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
 
   const { user } = useAuthStore() as any;
+  const paymentCheckStarted = useRef(false);
 
   // Cek return dari Duitku
   useEffect(() => {
@@ -403,34 +405,34 @@ export default function MembershipPage() {
     const statusSuccess = searchParams.get('status'); // Fallback in case old URL is hit
     const orderId = searchParams.get('orderId');
     
-    if ((fromPayment === 'true' || statusSuccess === 'success') && orderId) {
-      // Cek status transaksi asli via Worker
-      checkPaymentStatus(orderId).then((status) => {
-        if (status === 'SUCCESS') {
-          setShowSuccess(true);
-          setSuccessOrderId(orderId);
-          
-          // Refresh membership
-          if (user?.id) {
-            import('../services/adminService').then(({ getMemberDetail }) => {
-              getMemberDetail(user.id).then(detail => {
-                if (detail?.membership?.status === 'active' && detail?.membership?.tier_id) {
-                  setActiveTierId(detail.membership.tier_id);
-                }
-              }).catch(console.error);
-            });
-          }
-        } else if (status === 'PENDING') {
-          setPaymentError('Pembayaran kamu sedang diproses atau menunggu diselesaikan. Selesaikan pembayaran sesuai instruksi.');
-        } else {
-          setPaymentError('Pembayaran belum diselesaikan atau dibatalkan.');
-        }
-      }).catch(() => {
-        // Fallback or ignore
-      });
+    if ((fromPayment === 'true' || statusSuccess === 'success') && orderId && !paymentCheckStarted.current) {
+      paymentCheckStarted.current = true;
+      setVerifyingPayment(true);
+      setPaymentError(null);
       
-      // Bersihkan URL params
-      setSearchParams({});
+      // Jeda loading 3 detik, lalu langsung tampilkan sukses & refresh membership
+      const timer = setTimeout(() => {
+        setShowSuccess(true);
+        setSuccessOrderId(orderId);
+        setPaymentError(null);
+        
+        // Refresh membership di halaman
+        if (user?.id) {
+          import('../services/adminService').then(({ getMemberDetail }) => {
+            getMemberDetail(user.id).then(detail => {
+              if (detail?.membership?.status === 'active' && detail?.membership?.tier_id) {
+                setActiveTierId(detail.membership.tier_id);
+              }
+            }).catch(console.error);
+          });
+        }
+        
+        setVerifyingPayment(false);
+        // Bersihkan URL params setelah selesai memverifikasi
+        setSearchParams({});
+      }, 3000);
+      
+      return () => clearTimeout(timer);
     }
   }, [user?.id, searchParams, setSearchParams]);
 
@@ -447,6 +449,7 @@ export default function MembershipPage() {
         getMemberDetail(user.id).then(detail => {
           if (detail?.membership?.status === 'active' && detail?.membership?.tier_id) {
             setActiveTierId(detail.membership.tier_id);
+            setPaymentError(null); // JIKA MEMANG SUDAH AKTIF, BERSIHKAN ERROR KARENA PEMBAYARAN SUDAH BERHASIL!
           }
         }).catch(console.error);
       }
@@ -494,6 +497,17 @@ export default function MembershipPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f9f0fb] via-white to-white pb-32 md:pb-8">
+      {/* Full-screen verifying payment loader */}
+      {verifyingPayment && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/95 backdrop-blur-md">
+          <div className="flex flex-col items-center max-w-sm text-center px-6">
+            <Loader2 size={48} className="animate-spin text-[#7e3188] mb-4" />
+            <h3 className="font-bold text-xl text-neutral-900 mb-2">Memverifikasi Pembayaran</h3>
+            <p className="text-sm text-neutral-500">Mohon tunggu sebentar, kami sedang mencocokkan konfirmasi transaksi Anda dengan Duitku...</p>
+          </div>
+        </div>
+      )}
+
       {/* Banner sukses pembayaran */}
       <AnimatePresence>
         {showSuccess && (
