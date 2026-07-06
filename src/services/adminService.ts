@@ -160,36 +160,25 @@ function setLocalData<T>(key: string, value: T): void {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-let isOfflineMode = typeof window !== 'undefined' ? sessionStorage.getItem('qalbie_offline') === 'true' : false;
+let isOfflineMode = false; // Reset to false and don't read from session for Admin to prevent getting stuck
 
 function setOfflineMode(value: boolean) {
   isOfflineMode = value;
-  if (typeof window !== 'undefined') {
-    sessionStorage.setItem('qalbie_offline', value ? 'true' : 'false');
-  }
 }
 
-function withTimeout<T>(promise: Promise<T>, ms = 2000): Promise<T> {
-  if (isOfflineMode) {
-    return Promise.reject(new Error('Offline mode active'));
-  }
+function withTimeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
   const timeout = new Promise<never>((_, reject) =>
     setTimeout(() => {
-      setOfflineMode(true);
-      console.warn("Supabase timeout detected. Switching to offline mode.");
+      console.warn("Supabase timeout detected.");
       reject(new Error('Timeout'));
     }, ms)
   );
-  return Promise.race([promise, timeout]).catch(err => {
-    setOfflineMode(true);
-    throw err;
-  });
+  // Remove persistent offline mode trigger
+  return Promise.race([promise, timeout]);
 }
 
-async function runSupabase<T>(fn: () => Promise<T>, ms = 2000): Promise<T> {
-  if (isOfflineMode) {
-    throw new Error('Offline mode active');
-  }
+async function runSupabase<T>(fn: () => Promise<T>, ms = 10000): Promise<T> {
+  // Always try to run in admin mode
   return withTimeout(fn(), ms);
 }
 
@@ -1025,4 +1014,81 @@ export async function updateAppSettings(settings: AppSettings): Promise<void> {
   } catch (e) {
     setLocalData(MOCK_STORAGE_KEYS.SETTINGS, settings);
   }
+}
+
+// ─────────────────────────────────────────────
+// ADMIN CONTENTS (NEW)
+// ─────────────────────────────────────────────
+
+export interface AdminContent {
+  id: number;
+  title: string;
+  body: string | null;
+  media_url: string | null;
+  media_type: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getAdminContents(): Promise<AdminContent[]> {
+  try {
+    return await runSupabase(async () => {
+      const { data, error } = await supabase
+        .from('admin_contents')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    });
+  } catch (e) {
+    // Fallback if needed
+    return [];
+  }
+}
+
+export async function createAdminContent(content: Omit<AdminContent, 'id' | 'created_at' | 'updated_at'>): Promise<void> {
+  await runSupabase(async () => {
+    const { error } = await supabase.from('admin_contents').insert(content);
+    if (error) {
+      console.error('Error inserting admin_contents:', error);
+      throw error;
+    }
+  }, 10000); // 10 detik timeout
+}
+
+export async function updateAdminContent(id: number, content: Partial<AdminContent>): Promise<void> {
+  await runSupabase(async () => {
+    const { error } = await supabase.from('admin_contents').update(content).eq('id', id);
+    if (error) throw error;
+  });
+}
+
+export async function deleteAdminContent(id: number): Promise<void> {
+  await runSupabase(async () => {
+    const { error } = await supabase.from('admin_contents').delete().eq('id', id);
+    if (error) throw error;
+  });
+}
+
+export async function uploadAdminContentMedia(file: File): Promise<string> {
+  return await runSupabase(async () => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('AdminContent')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error('Error uploading to AdminContent bucket:', uploadError);
+      throw uploadError;
+    }
+
+    const { data } = supabase.storage
+      .from('AdminContent')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  }, 60000); // 60 detik timeout untuk upload media
 }

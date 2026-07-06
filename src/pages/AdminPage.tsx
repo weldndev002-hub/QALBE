@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Activity, LogOut, TrendingUp, Search, Plus, MoreVertical, Package, List, Settings, CheckCircle2, Shield, X, Edit, Trash2, ShieldAlert } from 'lucide-react';
+import { Users, Activity, LogOut, TrendingUp, Search, Plus, MoreVertical, Package, List, Settings, CheckCircle2, Shield, X, Edit, Trash2, ShieldAlert, FileText, Image, Video, Upload, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
@@ -138,6 +138,7 @@ export default function AdminPage() {
     { id: 'users', label: 'Member', icon: Users },
     { id: 'packages', label: 'Paket Membership', icon: Package },
     { id: 'features', label: 'Master Fitur', icon: List },
+    { id: 'contents', label: 'Konten', icon: FileText },
     { id: 'settings', label: 'Pengaturan', icon: Settings },
   ];
 
@@ -180,6 +181,7 @@ export default function AdminPage() {
           {activeTab === 'users' && <UsersTab key="users" />}
           {activeTab === 'packages' && <PackagesTab key="packages" />}
           {activeTab === 'features' && <FeaturesTab key="features" />}
+          {activeTab === 'contents' && <ContentsTab key="contents" />}
           {activeTab === 'settings' && <SettingsTab key="settings" />}
         </AnimatePresence>
       </main>
@@ -1252,6 +1254,289 @@ function SettingsTab() {
           </form>
         </div>
       )}
+    </motion.div>
+  );
+}
+
+function ContentsTab() {
+  const [contents, setContents] = useState<adminService.AdminContent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  
+  const [editingContent, setEditingContent] = useState<Partial<adminService.AdminContent> | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const fetchContents = () => {
+    setLoading(true);
+    adminService.getAdminContents().then(data => {
+      setContents(data);
+      setLoading(false);
+    }).catch(err => {
+      console.error(err);
+      setLoading(false);
+    });
+  };
+
+  useEffect(() => {
+    fetchContents();
+  }, []);
+
+  const handleOpenCreate = () => {
+    setEditingContent({
+      title: '',
+      body: '',
+      media_url: '',
+      media_type: 'image'
+    });
+    setUploadFile(null);
+    setPreviewUrl(null);
+  };
+
+  const handleOpenEdit = (content: adminService.AdminContent) => {
+    setEditingContent(content);
+    setUploadFile(null);
+    setPreviewUrl(content.media_url);
+  };
+
+  const handleDeleteContent = async (id: number) => {
+    const result = await showConfirm('Hapus Konten', 'Apakah anda yakin ingin menghapus konten ini?');
+    if (!result.isConfirmed) return;
+    try {
+      await adminService.deleteAdminContent(id);
+      showSuccess('Berhasil', 'Konten berhasil dihapus');
+      fetchContents();
+    } catch (e: any) {
+      showError('Gagal', 'Gagal menghapus konten: ' + e.message);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setUploadFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+      
+      if (file.type.startsWith('video/')) {
+        setEditingContent(prev => ({ ...prev, media_type: 'video' }));
+      } else {
+        setEditingContent(prev => ({ ...prev, media_type: 'image' }));
+      }
+    }
+  };
+
+  const handleSaveContent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingContent) return;
+    setActionLoading(true);
+
+    try {
+      let finalMediaUrl = editingContent.media_url;
+
+      if (uploadFile) {
+        finalMediaUrl = await adminService.uploadAdminContentMedia(uploadFile);
+      }
+
+      const payload = {
+        title: editingContent.title || '',
+        body: editingContent.body || '',
+        media_url: finalMediaUrl || null,
+        media_type: finalMediaUrl ? (editingContent.media_type || 'image') : null
+      };
+
+      if (editingContent.id) {
+        await adminService.updateAdminContent(editingContent.id, payload);
+        showSuccess('Berhasil!', 'Konten berhasil diperbarui!');
+      } else {
+        await adminService.createAdminContent(payload);
+        showSuccess('Berhasil!', 'Konten baru berhasil ditambahkan!');
+      }
+
+      setEditingContent(null);
+      fetchContents();
+    } catch (err: any) {
+      showError('Gagal!', 'Gagal menyimpan konten: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-neutral-900">Manajemen Konten</h2>
+          <p className="text-neutral-500 text-sm mt-1">Kelola konten, foto, dan video untuk halaman admin.</p>
+        </div>
+        <button 
+          onClick={handleOpenCreate}
+          className="bg-[#7e3188] text-white px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-[#682870] shadow-sm transition-all"
+        >
+          <Plus size={18} /> Tambah Konten
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {loading ? (
+          <div className="col-span-full flex justify-center p-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          </div>
+        ) : contents.length === 0 ? (
+          <div className="col-span-full bg-white p-12 rounded-2xl border border-neutral-200 text-center shadow-sm">
+            <FileText className="mx-auto text-neutral-300 mb-3" size={48} />
+            <p className="text-neutral-500 font-medium">Belum ada konten yang dibuat.</p>
+          </div>
+        ) : (
+          contents.map(content => (
+            <div key={content.id} className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden flex flex-col">
+              {content.media_url ? (
+                <div className="aspect-video w-full bg-neutral-100 relative group">
+                  {content.media_type === 'video' ? (
+                    <>
+                      <video src={content.media_url} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                        <Play className="text-white opacity-80" size={32} />
+                      </div>
+                    </>
+                  ) : (
+                    <img src={content.media_url} alt={content.title} className="w-full h-full object-cover" />
+                  )}
+                  <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded font-bold uppercase backdrop-blur-sm">
+                    {content.media_type}
+                  </div>
+                </div>
+              ) : (
+                <div className="aspect-video w-full bg-neutral-50 flex items-center justify-center">
+                  <FileText className="text-neutral-300" size={32} />
+                </div>
+              )}
+              
+              <div className="p-5 flex-1 flex flex-col">
+                <h3 className="font-bold text-neutral-900 text-lg mb-2 line-clamp-1">{content.title}</h3>
+                <p className="text-sm text-neutral-500 line-clamp-3 mb-4 flex-1 whitespace-pre-wrap">{content.body}</p>
+                <div className="flex justify-between items-center pt-4 border-t border-neutral-100 mt-auto">
+                  <span className="text-[10px] text-neutral-400 font-medium">
+                    {new Date(content.created_at).toLocaleDateString('id-ID')}
+                  </span>
+                  <div className="flex gap-1">
+                    <button onClick={() => handleOpenEdit(content)} className="p-1.5 text-neutral-400 hover:text-[#7e3188] transition-colors bg-neutral-50 rounded-lg">
+                      <Edit size={16} />
+                    </button>
+                    <button onClick={() => handleDeleteContent(content.id)} className="p-1.5 text-neutral-400 hover:text-red-500 transition-colors bg-neutral-50 rounded-lg">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <AnimatePresence>
+        {editingContent && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl w-full max-w-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-neutral-100 flex justify-between items-center bg-slate-50">
+                <div className="flex items-center gap-2">
+                  <FileText className="text-[#7e3188]" size={22} />
+                  <h3 className="font-bold text-lg text-slate-800">{editingContent.id ? 'Edit Konten' : 'Buat Konten Baru'}</h3>
+                </div>
+                <button onClick={() => setEditingContent(null)} className="text-neutral-400 hover:text-neutral-600">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveContent} className="flex-1 overflow-y-auto p-6 space-y-5">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1.5 uppercase tracking-wider pl-1">Judul Konten</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={editingContent.title || ''}
+                    onChange={(e) => setEditingContent({ ...editingContent, title: e.target.value })}
+                    placeholder="Masukkan judul..."
+                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-sm focus:outline-none focus:border-purple-500 focus:bg-white transition-all duration-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1.5 uppercase tracking-wider pl-1">Isi Teks / Deskripsi</label>
+                  <textarea 
+                    value={editingContent.body || ''}
+                    onChange={(e) => setEditingContent({ ...editingContent, body: e.target.value })}
+                    placeholder="Tuliskan isi konten..."
+                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-sm focus:outline-none focus:border-purple-500 focus:bg-white transition-all duration-200 h-32"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1.5 uppercase tracking-wider pl-1">Media (Foto/Video)</label>
+                  
+                  {previewUrl ? (
+                    <div className="relative rounded-xl overflow-hidden border border-neutral-200 bg-neutral-100 flex items-center justify-center mb-3 group">
+                      {editingContent.media_type === 'video' ? (
+                        <video src={previewUrl} controls className="max-h-64 object-contain w-full" />
+                      ) : (
+                        <img src={previewUrl} alt="Preview" className="max-h-64 object-contain w-full" />
+                      )}
+                      
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setUploadFile(null);
+                          setPreviewUrl(null);
+                          setEditingContent({ ...editingContent, media_url: null, media_type: null });
+                        }}
+                        className="absolute top-2 right-2 bg-black/60 hover:bg-red-600 text-white p-2 rounded-lg backdrop-blur-sm transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-neutral-300 rounded-xl p-8 text-center bg-neutral-50 hover:bg-neutral-100 transition-colors">
+                      <Upload className="mx-auto text-neutral-400 mb-3" size={32} />
+                      <p className="text-sm font-medium text-neutral-600 mb-1">Klik untuk mengunggah foto atau video</p>
+                      <p className="text-xs text-neutral-400 mb-4">Format: JPG, PNG, MP4, WebM (Max 50MB)</p>
+                      <label className="bg-white border border-neutral-200 text-neutral-700 px-4 py-2 rounded-lg text-sm font-bold shadow-sm cursor-pointer hover:bg-neutral-50 inline-block">
+                        Pilih File
+                        <input 
+                          type="file" 
+                          accept="image/*,video/*" 
+                          className="hidden" 
+                          onChange={handleFileChange}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3 justify-end pt-6 border-t border-neutral-100">
+                  <button 
+                    type="button" 
+                    onClick={() => setEditingContent(null)}
+                    className="border border-neutral-200 text-neutral-600 px-6 py-2.5 rounded-xl text-sm font-bold bg-white hover:bg-neutral-50 transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={actionLoading}
+                    className="bg-[#7e3188] hover:bg-[#682870] text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all disabled:opacity-50"
+                  >
+                    {actionLoading ? 'Menyimpan...' : 'Simpan Konten'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

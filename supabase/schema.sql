@@ -313,3 +313,83 @@ VALUES
   ('support_whatsapp', 'https://wa.me/6281234567890')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
+
+-- ============================================================
+-- 13. Tabel Pelacakan (Mood & Stress)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.mood_logs (
+  id SERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  mood_value NUMERIC NOT NULL, -- 0.0 to 1.0
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.stress_logs (
+  id SERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  stress_value NUMERIC NOT NULL, -- 0.0 to 1.0
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS untuk Mood & Stress
+ALTER TABLE public.mood_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.stress_logs ENABLE ROW LEVEL SECURITY;
+
+-- User hanya bisa melihat dan menambah data mereka sendiri (Mood)
+DROP POLICY IF EXISTS "Users can view own mood" ON public.mood_logs;
+CREATE POLICY "Users can view own mood" ON public.mood_logs FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert own mood" ON public.mood_logs;
+CREATE POLICY "Users can insert own mood" ON public.mood_logs FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- User hanya bisa melihat dan menambah data mereka sendiri (Stress)
+DROP POLICY IF EXISTS "Users can view own stress" ON public.stress_logs;
+CREATE POLICY "Users can view own stress" ON public.stress_logs FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert own stress" ON public.stress_logs;
+CREATE POLICY "Users can insert own stress" ON public.stress_logs FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- ============================================================
+-- 14. Tabel Konten Admin (Admin Contents)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.admin_contents (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  body TEXT,
+  media_url TEXT,
+  media_type TEXT, -- 'image' atau 'video'
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.admin_contents ENABLE ROW LEVEL SECURITY;
+
+-- Semua bisa baca konten
+DROP POLICY IF EXISTS "Public read admin_contents" ON public.admin_contents;
+CREATE POLICY "Public read admin_contents" ON public.admin_contents FOR SELECT USING (true);
+
+-- Hanya bisa insert/update jika bypass RLS (Service role)
+DROP POLICY IF EXISTS "Service insert/update admin_contents" ON public.admin_contents;
+CREATE POLICY "Service insert/update admin_contents" ON public.admin_contents FOR ALL USING (true);
+
+-- Storage bucket untuk AdminContent
+INSERT INTO storage.buckets (id, name, public) VALUES ('AdminContent', 'AdminContent', true) ON CONFLICT DO NOTHING;
+
+-- Kebijakan RLS agar media admin bisa dilihat secara publik
+DROP POLICY IF EXISTS "AdminContent Public Access" ON storage.objects;
+CREATE POLICY "AdminContent Public Access"
+ON storage.objects FOR SELECT
+USING ( bucket_id = 'AdminContent' );
+
+-- Kebijakan agar bisa mengunggah file
+DROP POLICY IF EXISTS "Admin can upload content" ON storage.objects;
+CREATE POLICY "Admin can upload content"
+ON storage.objects FOR INSERT
+WITH CHECK ( bucket_id = 'AdminContent' );
+
+-- Kebijakan agar bisa hapus file content
+DROP POLICY IF EXISTS "Admin can delete content" ON storage.objects;
+CREATE POLICY "Admin can delete content"
+ON storage.objects FOR DELETE
+USING ( bucket_id = 'AdminContent' );
+
