@@ -1072,13 +1072,26 @@ export async function deleteAdminContent(id: number): Promise<void> {
 
 export async function uploadAdminContentMedia(file: File): Promise<string> {
   return await runSupabase(async () => {
-    const fileExt = file.name.split('.').pop();
+    let finalFile = file;
+
+    if (file.type.startsWith('image/')) {
+      // Kompres gambar agar database tidak bengkak tapi tetap jernih
+      finalFile = await compressImage(file);
+    } else if (file.type.startsWith('video/')) {
+      // Batasi ukuran video maksimal 50MB (kompresi video di sisi client terlalu berat tanpa ffmpeg)
+      const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
+      if (file.size > MAX_VIDEO_SIZE) {
+        throw new Error('Ukuran video terlalu besar. Maksimal 50MB.');
+      }
+    }
+
+    const fileExt = finalFile.name.split('.').pop();
     const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
     const filePath = `${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from('AdminContent')
-      .upload(filePath, file);
+      .upload(filePath, finalFile);
 
     if (uploadError) {
       console.error('Error uploading to AdminContent bucket:', uploadError);
@@ -1091,4 +1104,60 @@ export async function uploadAdminContentMedia(file: File): Promise<string> {
 
     return data.publicUrl;
   }, 60000); // 60 detik timeout untuk upload media
+}
+
+// Helper untuk kompres gambar menggunakan Canvas API bawaan browser
+async function compressImage(file: File): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1280; // Resolusi maksimal yang cukup jernih untuk mobile & web
+        const MAX_HEIGHT = 1280;
+        let width = img.width;
+        let height = img.height;
+
+        // Resize rasio jika melebihi batas
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(file); // Fallback ke file asli jika gagal
+        
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert ke format WebP dengan kualitas 85% (High Quality, Low Size)
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) return resolve(file);
+            const newName = file.name.replace(/\.[^/.]+$/, ".webp");
+            const compressedFile = new File([blob], newName, {
+              type: 'image/webp',
+              lastModified: Date.now(),
+            });
+            resolve(compressedFile);
+          },
+          'image/webp',
+          0.85
+        );
+      };
+      img.onerror = (error) => reject(error);
+    };
+    reader.onerror = (error) => reject(error);
+  });
 }

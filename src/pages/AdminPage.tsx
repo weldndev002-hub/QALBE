@@ -1388,9 +1388,9 @@ function ContentsTab() {
           </div>
         ) : (
           contents.map(content => (
-            <div key={content.id} className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden flex flex-col">
+            <div key={content.id} className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden flex flex-col h-[420px]">
               {content.media_url ? (
-                <div className="aspect-video w-full bg-neutral-100 relative group">
+                <div className="h-48 w-full bg-neutral-100 relative group shrink-0 overflow-hidden">
                   {content.media_type === 'video' ? (
                     <>
                       <video src={content.media_url} className="w-full h-full object-cover" />
@@ -1401,12 +1401,12 @@ function ContentsTab() {
                   ) : (
                     <img src={content.media_url} alt={content.title} className="w-full h-full object-cover" />
                   )}
-                  <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded font-bold uppercase backdrop-blur-sm">
+                  <div className="absolute top-3 right-3 bg-black/60 text-white text-[10px] px-2 py-1 rounded font-bold uppercase backdrop-blur-sm">
                     {content.media_type}
                   </div>
                 </div>
               ) : (
-                <div className="aspect-video w-full bg-neutral-50 flex items-center justify-center">
+                <div className="h-48 w-full bg-neutral-50 flex items-center justify-center border-b border-neutral-100 shrink-0">
                   <FileText className="text-neutral-300" size={32} />
                 </div>
               )}

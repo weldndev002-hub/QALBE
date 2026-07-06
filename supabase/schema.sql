@@ -393,3 +393,53 @@ CREATE POLICY "Admin can delete content"
 ON storage.objects FOR DELETE
 USING ( bucket_id = 'AdminContent' );
 
+-- ============================================================
+-- 15. Tabel Notifikasi (Notifications)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE, -- Jika null, berarti broadcast ke semua user
+  title TEXT NOT NULL,
+  description TEXT,
+  icon TEXT DEFAULT 'info',
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+-- User bisa membaca notifikasi miliknya atau notifikasi broadcast (user_id IS NULL)
+DROP POLICY IF EXISTS "Users can view own and broadcast notifications" ON public.notifications;
+CREATE POLICY "Users can view own and broadcast notifications" ON public.notifications
+  FOR SELECT USING (auth.uid() = user_id OR user_id IS NULL);
+
+-- Hanya service role yang bisa insert/update/delete (bypass RLS)
+DROP POLICY IF EXISTS "Service insert/update notifications" ON public.notifications;
+CREATE POLICY "Service insert/update notifications" ON public.notifications FOR ALL USING (true);
+
+
+-- Trigger untuk mengirim notifikasi broadcast saat admin membuat konten baru
+CREATE OR REPLACE FUNCTION public.notify_new_admin_content()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.notifications (title, description, icon)
+  VALUES (
+    'Konten Baru: ' || NEW.title,
+    'Ada inspirasi baru untukmu! Silakan cek di beranda.',
+    'new_releases'
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_admin_content_created ON public.admin_contents;
+CREATE TRIGGER on_admin_content_created
+  AFTER INSERT ON public.admin_contents
+  FOR EACH ROW EXECUTE PROCEDURE public.notify_new_admin_content();
+
+-- ============================================================
+-- Aktifkan Realtime untuk tabel (Opsional tapi wajib untuk Stream)
+-- ============================================================
+ALTER PUBLICATION supabase_realtime ADD TABLE admin_contents;
+ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+
