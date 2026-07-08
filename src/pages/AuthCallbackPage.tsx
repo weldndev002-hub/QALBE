@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 export default function AuthCallbackPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [message, setMessage] = useState('Memverifikasi email kamu...');
+  const [message, setMessage] = useState('Memproses...');
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -17,8 +17,8 @@ export default function AuthCallbackPage() {
 
         if (data.session) {
           setStatus('success');
-          setMessage('Email berhasil diverifikasi! Mengalihkan ke halaman login...');
-          setTimeout(() => navigate('/login'), 2000);
+          setMessage('Berhasil masuk! Mengalihkan ke halaman utama...');
+          setTimeout(() => navigate('/membership'), 2000);
         } else {
           // Coba exchange token dari URL
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
@@ -27,13 +27,13 @@ export default function AuthCallbackPage() {
           if (exchangeError) throw exchangeError;
 
           setStatus('success');
-          setMessage('Email berhasil diverifikasi! Mengalihkan ke halaman login...');
-          setTimeout(() => navigate('/login'), 2000);
+          setMessage('Berhasil masuk! Mengalihkan ke halaman utama...');
+          setTimeout(() => navigate('/membership'), 2000);
         }
       } catch (err: any) {
         setStatus('error');
-        setMessage('Verifikasi gagal. Link mungkin sudah kadaluarsa. Silakan daftar ulang.');
-        setTimeout(() => navigate('/register'), 3000);
+        setMessage('Gagal masuk. Silakan coba lagi.');
+        setTimeout(() => navigate('/login'), 3000);
       }
     };
 
@@ -52,14 +52,14 @@ export default function AuthCallbackPage() {
         {status === 'success' && (
           <div className="flex flex-col items-center gap-4">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-3xl">✅</div>
-            <h1 className="text-xl font-bold text-neutral-800">Verifikasi Berhasil!</h1>
+            <h1 className="text-xl font-bold text-neutral-800">Berhasil!</h1>
             <p className="text-neutral-500">{message}</p>
           </div>
         )}
         {status === 'error' && (
           <div className="flex flex-col items-center gap-4">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center text-3xl">❌</div>
-            <h1 className="text-xl font-bold text-neutral-800">Verifikasi Gagal</h1>
+            <h1 className="text-xl font-bold text-neutral-800">Gagal</h1>
             <p className="text-neutral-500">{message}</p>
           </div>
         )}
