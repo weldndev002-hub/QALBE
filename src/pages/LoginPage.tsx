@@ -1,71 +1,25 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
 
 export default function LoginPage() {
-  const navigate = useNavigate();
-  const { login } = useAuthStore() as any;
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setIsLoading(true);
     setErrorMsg('');
-
-    const emailNorm = email.trim().toLowerCase();
-
-    // ── HANYA carx2254@gmail.com yang mendapat akses Super Admin ──
-    if (emailNorm === 'carx2254@gmail.com' && password === 'Test1234.') {
-      const userData = {
-        id: 'mock-admin-id-carx',
-        name: 'Super Admin',
-        email: email.trim(),
-        tier: 'Premium',
-      };
-      login(userData, 'mock-admin-token', 'super_admin');
-      navigate('/admin');
-      setIsLoading(false);
-      return;
-    }
-
-    // ── Semua akun lain → login biasa via Supabase, role selalu user ──
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-
-      if (error) {
-        // Pesan error lebih ramah untuk email belum diverifikasi
-        if (error.message.toLowerCase().includes('email not confirmed')) {
-          throw new Error('Email kamu belum diverifikasi. Silakan cek kotak masuk (atau folder Spam) dan klik link verifikasi yang dikirim saat daftar.');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
         }
-        throw error;
-      }
-
-      if (!data.user || !data.session) {
-        throw new Error('Gagal memproses session login.');
-      }
-
-      const userData = {
-        id: data.user.id,
-        name: data.user.user_metadata?.full_name || email.trim().split('@')[0],
-        email: data.user.email,
-        tier: 'Free',
-      };
-
-      login(userData, data.session.access_token, 'user');
-      navigate('/dashboard');
+      });
+      if (error) throw error;
     } catch (err: any) {
-      setErrorMsg(err.message || 'Gagal masuk. Periksa kembali email dan kata sandi Anda.');
-    } finally {
+      setErrorMsg(err.message || 'Gagal masuk dengan Google.');
       setIsLoading(false);
     }
   };
@@ -93,58 +47,16 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="w-full space-y-4">
-            <div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400">
-                  <Mail size={20} />
-                </div>
-                <input 
-                  type="text" 
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-white rounded-full py-4 pl-14 pr-6 focus:outline-none focus:ring-2 focus:ring-[#FF5D8F]/50 transition-all font-medium text-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] placeholder:text-slate-400"
-                  placeholder="Email atau Nomor Telepon"
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400">
-                  <Lock size={20} />
-                </div>
-                <input 
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-white rounded-full py-4 pl-14 pr-14 focus:outline-none focus:ring-2 focus:ring-[#FF5D8F]/50 transition-all font-medium text-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] placeholder:text-slate-400"
-                  placeholder="Kata Sandi"
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-5 flex items-center text-slate-400 hover:text-[#FF5D8F] transition-colors"
-                >
-                  {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
-                </button>
-              </div>
-            </div>
-
-            <div className="text-right pt-1 pb-4">
-              <Link to="#" className="text-sm font-bold text-slate-500 hover:text-[#FF5D8F] transition-colors">Lupa Kata Sandi?</Link>
-            </div>
-
+          <div className="w-full space-y-4">
             <button 
-              type="submit" 
+              onClick={handleGoogleLogin}
               disabled={isLoading}
-              className="w-full bg-[#FF5D8F] text-white font-bold text-[17px] py-4 rounded-full hover:bg-[#F04A7D] transition-all shadow-[0_8px_20px_rgba(255,93,143,0.3)] disabled:opacity-70 disabled:cursor-not-allowed transform active:scale-[0.98]"
+              className="w-full bg-white border border-gray-200 text-gray-700 font-semibold text-[17px] py-4 rounded-full flex items-center justify-center gap-3 hover:bg-gray-50 transition-all shadow-sm disabled:opacity-70 disabled:cursor-not-allowed transform active:scale-[0.98]"
             >
-              {isLoading ? 'Memproses...' : 'Masuk'}
+              <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-6 h-6" />
+              {isLoading ? 'Memproses...' : 'Lanjutkan dengan Google'}
             </button>
-          </form>
+          </div>
 
           <div className="mt-8 text-center">
             <p className="text-sm font-medium text-slate-500">

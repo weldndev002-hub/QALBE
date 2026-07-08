@@ -443,3 +443,70 @@ CREATE TRIGGER on_admin_content_created
 ALTER PUBLICATION supabase_realtime ADD TABLE admin_contents;
 ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
 
+-- ============================================================
+-- 16. Tabel Audio/Musik Admin (Admin Audios)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.admin_audios (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  audio_url TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.admin_audios ENABLE ROW LEVEL SECURITY;
+
+-- Semua bisa baca audio
+DROP POLICY IF EXISTS "Public read admin_audios" ON public.admin_audios;
+CREATE POLICY "Public read admin_audios" ON public.admin_audios FOR SELECT USING (true);
+
+-- Hanya bisa insert/update jika bypass RLS (Service role)
+DROP POLICY IF EXISTS "Service insert/update admin_audios" ON public.admin_audios;
+CREATE POLICY "Service manage admin_audios" ON public.admin_audios FOR ALL USING (true) WITH CHECK (true);
+
+-- Storage bucket untuk AdminAudio
+INSERT INTO storage.buckets (id, name, public) VALUES ('AdminAudio', 'AdminAudio', true) ON CONFLICT DO NOTHING;
+
+-- Kebijakan RLS agar audio admin bisa didengar secara publik
+DROP POLICY IF EXISTS "AdminAudio Public Access" ON storage.objects;
+CREATE POLICY "AdminAudio Public Access" ON storage.objects FOR SELECT USING ( bucket_id = 'AdminAudio' );
+
+-- Kebijakan agar bisa mengunggah file audio
+DROP POLICY IF EXISTS "Admin can upload audio" ON storage.objects;
+CREATE POLICY "Admin can upload audio" ON storage.objects FOR INSERT WITH CHECK ( bucket_id = 'AdminAudio' );
+
+-- Kebijakan agar bisa hapus file audio
+DROP POLICY IF EXISTS "Admin can delete audio" ON storage.objects;
+CREATE POLICY "Admin can delete audio" ON storage.objects FOR DELETE USING ( bucket_id = 'AdminAudio' );
+
+-- Realtime
+ALTER PUBLICATION supabase_realtime ADD TABLE admin_audios;
+
+-- ============================================================
+-- 17. Kebijakan Manajemen Fitur & Paket (Admin)
+-- ============================================================
+
+-- Manajemen Master Fitur (Admin)
+DROP POLICY IF EXISTS "Service manage features" ON public.features;
+CREATE POLICY "Service manage features" ON public.features FOR ALL USING (true) WITH CHECK (true);
+
+-- Manajemen Paket Membership (Admin)
+DROP POLICY IF EXISTS "Service manage membership_tiers" ON public.membership_tiers;
+CREATE POLICY "Service manage membership_tiers" ON public.membership_tiers FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================================
+-- 18. Tabel Backup User (WhatsApp-like Cloud Backup)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.user_backups (
+  user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  backup_data JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.user_backups ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS Users can manage own backups ON public.user_backups;
+CREATE POLICY Users can manage own backups ON public.user_backups FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+

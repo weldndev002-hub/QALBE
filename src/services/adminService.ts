@@ -1161,3 +1161,84 @@ async function compressImage(file: File): Promise<File> {
     reader.onerror = (error) => reject(error);
   });
 }
+
+// ─────────────────────────────────────────────
+// ADMIN AUDIOS / MUSIC (NEW)
+// ─────────────────────────────────────────────
+
+export interface AdminAudio {
+  id: number;
+  title: string;
+  description: string | null;
+  audio_url: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getAdminAudios(): Promise<AdminAudio[]> {
+  try {
+    return await runSupabase(async () => {
+      const { data, error } = await supabase
+        .from('admin_audios')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    });
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function createAdminAudio(audio: Omit<AdminAudio, 'id' | 'created_at' | 'updated_at'>): Promise<void> {
+  await runSupabase(async () => {
+    const { error } = await supabase.from('admin_audios').insert(audio);
+    if (error) {
+      console.error('Error inserting admin_audios:', error);
+      throw error;
+    }
+  }, 10000);
+}
+
+export async function updateAdminAudio(id: number, audio: Partial<AdminAudio>): Promise<void> {
+  await runSupabase(async () => {
+    const { error } = await supabase.from('admin_audios').update(audio).eq('id', id);
+    if (error) throw error;
+  });
+}
+
+export async function deleteAdminAudio(id: number): Promise<void> {
+  await runSupabase(async () => {
+    const { error } = await supabase.from('admin_audios').delete().eq('id', id);
+    if (error) throw error;
+  });
+}
+
+export async function uploadAdminAudioMedia(file: File): Promise<string> {
+  return await runSupabase(async () => {
+    // Batasi ukuran audio maksimal 30MB
+    const MAX_AUDIO_SIZE = 30 * 1024 * 1024;
+    if (file.size > MAX_AUDIO_SIZE) {
+      throw new Error('Ukuran file audio terlalu besar. Maksimal 30MB.');
+    }
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('AdminAudio')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error('Error uploading to AdminAudio bucket:', uploadError);
+      throw uploadError;
+    }
+
+    const { data } = supabase.storage
+      .from('AdminAudio')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  }, 60000); // 60 detik timeout untuk upload audio
+}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Activity, LogOut, TrendingUp, Search, Plus, MoreVertical, Package, List, Settings, CheckCircle2, Shield, X, Edit, Trash2, ShieldAlert, FileText, Image, Video, Upload, Play } from 'lucide-react';
+import { Users, Activity, LogOut, TrendingUp, Search, Plus, MoreVertical, Package, List, Settings, CheckCircle2, Shield, X, Edit, Trash2, ShieldAlert, FileText, Image, Video, Upload, Play, Headphones, Music } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
@@ -139,6 +139,7 @@ export default function AdminPage() {
     { id: 'packages', label: 'Paket Membership', icon: Package },
     { id: 'features', label: 'Master Fitur', icon: List },
     { id: 'contents', label: 'Konten', icon: FileText },
+    { id: 'audios', label: 'Audio Terapi', icon: Headphones },
     { id: 'settings', label: 'Pengaturan', icon: Settings },
   ];
 
@@ -182,6 +183,7 @@ export default function AdminPage() {
           {activeTab === 'packages' && <PackagesTab key="packages" />}
           {activeTab === 'features' && <FeaturesTab key="features" />}
           {activeTab === 'contents' && <ContentsTab key="contents" />}
+          {activeTab === 'audios' && <AudioTab key="audios" />}
           {activeTab === 'settings' && <SettingsTab key="settings" />}
         </AnimatePresence>
       </main>
@@ -1258,6 +1260,44 @@ function SettingsTab() {
   );
 }
 
+const compressImage = async (file: File): Promise<File> => {
+  if (!file.type.startsWith('image/')) return file;
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1200;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+        } else {
+          if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(file);
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));
+          } else {
+            resolve(file);
+          }
+        }, 'image/jpeg', 0.7);
+      };
+      img.onerror = () => resolve(file);
+    };
+    reader.onerror = () => resolve(file);
+  });
+};
+
 function ContentsTab() {
   const [contents, setContents] = useState<adminService.AdminContent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1334,7 +1374,8 @@ function ContentsTab() {
       let finalMediaUrl = editingContent.media_url;
 
       if (uploadFile) {
-        finalMediaUrl = await adminService.uploadAdminContentMedia(uploadFile);
+        const compressedFile = await compressImage(uploadFile);
+        finalMediaUrl = await adminService.uploadAdminContentMedia(compressedFile);
       }
 
       const payload = {
@@ -1530,6 +1571,282 @@ function ContentsTab() {
                     className="bg-[#7e3188] hover:bg-[#682870] text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all disabled:opacity-50"
                   >
                     {actionLoading ? 'Menyimpan...' : 'Simpan Konten'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function AudioTab() {
+  const [audios, setAudios] = useState<adminService.AdminAudio[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  
+  const [editingAudio, setEditingAudio] = useState<Partial<adminService.AdminAudio> | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+
+  const fetchAudios = () => {
+    setLoading(true);
+    adminService.getAdminAudios().then(data => {
+      setAudios(data);
+      setLoading(false);
+    }).catch(err => {
+      console.error(err);
+      setLoading(false);
+    });
+  };
+
+  useEffect(() => {
+    fetchAudios();
+  }, []);
+
+  const handleOpenCreate = () => {
+    setEditingAudio({
+      title: '',
+      description: '',
+      audio_url: ''
+    });
+    setUploadFile(null);
+  };
+
+  const handleOpenEdit = (audio: adminService.AdminAudio) => {
+    setEditingAudio(audio);
+    setUploadFile(null);
+  };
+
+  const handleDeleteAudio = async (id: number) => {
+    const result = await showConfirm('Hapus Audio', 'Apakah anda yakin ingin menghapus audio ini?');
+    if (!result.isConfirmed) return;
+    try {
+      await adminService.deleteAdminAudio(id);
+      showSuccess('Berhasil', 'Audio berhasil dihapus');
+      fetchAudios();
+    } catch (e: any) {
+      showError('Gagal', 'Gagal menghapus audio: ' + e.message);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setUploadFile(file);
+    }
+  };
+
+  const handleSaveAudio = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAudio) return;
+    setActionLoading(true);
+
+    try {
+      let finalMediaUrl = editingAudio.audio_url;
+
+      if (uploadFile) {
+        finalMediaUrl = await adminService.uploadAdminAudioMedia(uploadFile);
+      }
+
+      if (!finalMediaUrl) {
+        throw new Error('File audio harus diunggah!');
+      }
+
+      const payload = {
+        title: editingAudio.title || '',
+        description: editingAudio.description || '',
+        audio_url: finalMediaUrl
+      };
+
+      if (editingAudio.id) {
+        await adminService.updateAdminAudio(editingAudio.id, payload);
+        showSuccess('Berhasil!', 'Audio berhasil diperbarui!');
+      } else {
+        await adminService.createAdminAudio(payload);
+        showSuccess('Berhasil!', 'Audio baru berhasil ditambahkan!');
+      }
+
+      setEditingAudio(null);
+      fetchAudios();
+    } catch (err: any) {
+      showError('Gagal!', 'Gagal menyimpan audio: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-neutral-900">Audio Terapi</h2>
+          <p className="text-neutral-500 text-sm mt-1">Kelola musik, suara alam, dan audio terapi untuk pengguna.</p>
+        </div>
+        <button 
+          onClick={handleOpenCreate}
+          className="bg-[#7e3188] text-white px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-[#682870] shadow-sm transition-all"
+        >
+          <Plus size={18} /> Tambah Audio
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {loading ? (
+          <div className="col-span-full flex justify-center p-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          </div>
+        ) : audios.length === 0 ? (
+          <div className="col-span-full bg-white p-12 rounded-2xl border border-neutral-200 text-center shadow-sm">
+            <Headphones className="mx-auto text-neutral-300 mb-3" size={48} />
+            <p className="text-neutral-500 font-medium">Belum ada audio yang ditambahkan.</p>
+          </div>
+        ) : (
+          audios.map(audio => (
+            <div key={audio.id} className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden flex flex-col min-h-[340px]">
+              <div className="h-32 w-full bg-gradient-to-br from-[#7e3188]/20 to-[#682870]/20 flex items-center justify-center relative shrink-0">
+                <Music className="text-[#7e3188] opacity-50" size={48} />
+                <div className="absolute bottom-2 right-2 bg-white/80 backdrop-blur-sm text-[#7e3188] text-[10px] px-2 py-1 rounded-md font-bold uppercase shadow-sm">
+                  Audio
+                </div>
+              </div>
+              
+              <div className="p-5 flex-1 flex flex-col">
+                <h3 className="font-bold text-neutral-900 text-lg mb-1 line-clamp-1">{audio.title}</h3>
+                <p className="text-sm text-neutral-500 line-clamp-2 mb-3 flex-1">{audio.description}</p>
+                
+                {/* Audio Player */}
+                <audio 
+                  controls 
+                  src={audio.audio_url} 
+                  className="w-full h-10 mb-4 rounded-md"
+                  controlsList="nodownload" 
+                />
+
+                <div className="flex justify-between items-center pt-3 border-t border-neutral-100 mt-auto shrink-0">
+                  <span className="text-[10px] text-neutral-400 font-medium">
+                    {new Date(audio.created_at).toLocaleDateString('id-ID')}
+                  </span>
+                  <div className="flex gap-1">
+                    <button onClick={() => handleOpenEdit(audio)} className="p-1.5 text-neutral-400 hover:text-[#7e3188] transition-colors bg-neutral-50 rounded-lg">
+                      <Edit size={16} />
+                    </button>
+                    <button onClick={() => handleDeleteAudio(audio.id)} className="p-1.5 text-neutral-400 hover:text-red-500 transition-colors bg-neutral-50 rounded-lg">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <AnimatePresence>
+        {editingAudio && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-neutral-100 flex justify-between items-center bg-slate-50">
+                <div className="flex items-center gap-2">
+                  <Headphones className="text-[#7e3188]" size={22} />
+                  <h3 className="font-bold text-lg text-slate-800">{editingAudio.id ? 'Edit Audio' : 'Tambah Audio Baru'}</h3>
+                </div>
+                <button onClick={() => setEditingAudio(null)} className="text-neutral-400 hover:text-neutral-600">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveAudio} className="flex-1 overflow-y-auto p-6 space-y-5">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1.5 uppercase tracking-wider pl-1">Judul Audio</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={editingAudio.title || ''}
+                    onChange={(e) => setEditingAudio({ ...editingAudio, title: e.target.value })}
+                    placeholder="Contoh: Suara Hujan Deras, Terapi Relaksasi"
+                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-sm focus:outline-none focus:border-purple-500 focus:bg-white transition-all duration-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1.5 uppercase tracking-wider pl-1">Deskripsi Singkat</label>
+                  <textarea 
+                    value={editingAudio.description || ''}
+                    onChange={(e) => setEditingAudio({ ...editingAudio, description: e.target.value })}
+                    placeholder="Deskripsikan tentang audio ini..."
+                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-sm focus:outline-none focus:border-purple-500 focus:bg-white transition-all duration-200 h-24"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1.5 uppercase tracking-wider pl-1">File Audio (MP3/WAV/M4A)</label>
+                  
+                  {editingAudio.audio_url && !uploadFile ? (
+                    <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-200 flex flex-col gap-3">
+                      <span className="text-xs text-neutral-500 font-medium block">File saat ini terpasang:</span>
+                      <audio controls src={editingAudio.audio_url} className="w-full h-10"></audio>
+                      <label className="mt-2 bg-white border border-neutral-200 text-neutral-700 px-4 py-2 rounded-lg text-xs font-bold shadow-sm cursor-pointer hover:bg-neutral-50 text-center w-full block">
+                        Ganti File Audio
+                        <input 
+                          type="file" 
+                          accept="audio/*" 
+                          className="hidden" 
+                          onChange={handleFileChange}
+                        />
+                      </label>
+                    </div>
+                  ) : uploadFile ? (
+                     <div className="bg-neutral-50 p-4 rounded-xl border border-emerald-200 flex flex-col gap-3 items-center">
+                       <Music className="text-emerald-500" size={32} />
+                       <p className="text-sm font-bold text-emerald-700">{uploadFile.name}</p>
+                       <p className="text-xs text-emerald-600">{(uploadFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+                       <button 
+                         type="button"
+                         onClick={() => setUploadFile(null)}
+                         className="mt-1 text-red-500 text-xs font-bold hover:underline"
+                       >
+                         Batalkan Pilihan
+                       </button>
+                     </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-neutral-300 rounded-xl p-8 text-center bg-neutral-50 hover:bg-neutral-100 transition-colors">
+                      <Upload className="mx-auto text-neutral-400 mb-3" size={32} />
+                      <p className="text-sm font-medium text-neutral-600 mb-1">Klik untuk mengunggah musik / audio</p>
+                      <p className="text-xs text-neutral-400 mb-4">Format: MP3, WAV, M4A (Maks. 30MB)</p>
+                      <label className="bg-white border border-neutral-200 text-neutral-700 px-4 py-2 rounded-lg text-sm font-bold shadow-sm cursor-pointer hover:bg-neutral-50 inline-block">
+                        Pilih File
+                        <input 
+                          type="file" 
+                          accept="audio/*" 
+                          className="hidden" 
+                          onChange={handleFileChange}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3 justify-end pt-6 border-t border-neutral-100">
+                  <button 
+                    type="button" 
+                    onClick={() => setEditingAudio(null)}
+                    className="border border-neutral-200 text-neutral-600 px-6 py-2.5 rounded-xl text-sm font-bold bg-white hover:bg-neutral-50 transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={actionLoading}
+                    className="bg-[#7e3188] hover:bg-[#682870] text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all disabled:opacity-50"
+                  >
+                    {actionLoading ? 'Menyimpan...' : 'Simpan Audio'}
                   </button>
                 </div>
               </form>

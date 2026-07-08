@@ -1,59 +1,27 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
-import { useAuthStore } from '../store/authStore';
+import { ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const { login } = useAuthStore() as any;
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setIsLoading(true);
     setErrorMsg('');
-    setSuccessMsg('');
-
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
         options: {
-          data: {
-            full_name: name,
-          },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/dashboard`,
         }
       });
-
       if (error) throw error;
-
-      if (data.session) {
-        // Jika auto-login setelah register
-        login({ name: name, email: email, tier: 'Free' }, data.session.access_token);
-        
-        // 1. Coba otomatis redirect kembali ke aplikasi Qalbie
-        window.location.href = "qalbie://login";
-        
-        // 2. Fallback: jika ternyata di-buka dari browser laptop biasa, lanjut ke onboarding web
-        setTimeout(() => {
-          navigate('/onboarding');
-        }, 2000);
-      } else {
-        // Jika perlu verifikasi email
-        setSuccessMsg('Registrasi berhasil! Silakan cek email Anda lalu klik tombol di bawah untuk kembali ke aplikasi.');
-      }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Terjadi kesalahan saat mendaftar.');
-    } finally {
+      setErrorMsg(err.message || 'Terjadi kesalahan saat mendaftar dengan Google.');
       setIsLoading(false);
     }
   };
@@ -76,87 +44,17 @@ export default function RegisterPage() {
               {errorMsg}
             </div>
           )}
-          {successMsg && (
-            <div className="mb-6 flex flex-col gap-3">
-              <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-xl text-sm font-medium">
-                {successMsg}
-              </div>
-              <a 
-                href="qalbie://login"
-                className="w-full text-center bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition-colors"
-              >
-                Buka di Aplikasi Qalbie
-              </a>
-            </div>
-          )}
 
-          <form onSubmit={handleRegister} className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-neutral-700 mb-1.5">Nama Panggilan</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-neutral-400">
-                  <User size={20} />
-                </div>
-                <input 
-                  type="text" 
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-white border border-neutral-200 rounded-2xl py-3.5 pl-11 pr-4 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-400 outline-none transition-all"
-                  placeholder="Nama Panggilan"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-neutral-700 mb-1.5">Email</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-neutral-400">
-                  <Mail size={20} />
-                </div>
-                <input 
-                  type="email" 
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-white border border-neutral-200 rounded-2xl py-3.5 pl-11 pr-4 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-400 outline-none transition-all"
-                  placeholder="nama@email.com"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-neutral-700 mb-1.5">Kata Sandi</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-neutral-400">
-                  <Lock size={20} />
-                </div>
-                <input 
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-white border border-neutral-200 rounded-2xl py-3.5 pl-11 pr-12 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-400 outline-none transition-all"
-                  placeholder="Minimal 8 karakter"
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-neutral-400 hover:text-neutral-600"
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
-
+          <div className="w-full space-y-4">
             <button 
-              type="submit" 
+              onClick={handleGoogleLogin}
               disabled={isLoading}
-              className="w-full bg-primary-600 text-white font-bold py-3.5 rounded-full mt-6 hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full bg-white border border-gray-200 text-gray-700 font-semibold text-[17px] py-4 rounded-full flex items-center justify-center gap-3 hover:bg-gray-50 transition-all shadow-sm disabled:opacity-70 disabled:cursor-not-allowed transform active:scale-[0.98]"
             >
-              {isLoading ? 'Mendaftar...' : 'Daftar Sekarang'}
+              <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-6 h-6" />
+              {isLoading ? 'Memproses...' : 'Lanjutkan dengan Google'}
             </button>
-          </form>
+          </div>
 
           <div className="mt-8 text-center">
             <p className="text-sm text-neutral-600">
