@@ -1,5 +1,5 @@
-name = "qalbie"
-account_id = "ecb63a464cfb60c5f1f27d6de4836102"
+name = "qalbie-mms-dev"
+account_id = "ca2c4dbf10ca7fb5c990df4bcb4c6a8f"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 

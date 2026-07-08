@@ -61,10 +61,10 @@ export default function AdminPage() {
     const checkAuth = async () => {
       try {
         if (!isAuthenticated) {
-          if (isMounted) navigate('/login');
+          if (isMounted) navigate('/admin/login');
           return;
         }
-        
+
         // Fast path: jika local role sudah admin, izinkan langsung render
         if (role === 'admin' || role === 'super_admin') {
           if (isMounted) {
@@ -73,13 +73,13 @@ export default function AdminPage() {
           }
           return;
         }
-        
+
         // Timeout 2 detik untuk menghindari hanging jika supabase error
         const rolePromise = adminService.getCurrentUserRole().catch(() => null);
         const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000));
-        
+
         let actualRole = await Promise.race([rolePromise, timeoutPromise]);
-        
+
         if (!isMounted) return;
 
         if (actualRole === 'user' || !actualRole) {
@@ -89,7 +89,7 @@ export default function AdminPage() {
         }
 
         if (actualRole !== 'admin' && actualRole !== 'super_admin') {
-          navigate('/dashboard');
+          navigate('/admin/login');
         } else {
           setIsAuthorized(true);
         }
@@ -99,7 +99,7 @@ export default function AdminPage() {
           if (role === 'admin' || role === 'super_admin') {
             setIsAuthorized(true);
           } else {
-            navigate('/dashboard');
+            navigate('/admin/login');
           }
         }
       } finally {
@@ -107,13 +107,13 @@ export default function AdminPage() {
       }
     };
     checkAuth();
-    
+
     return () => { isMounted = false; };
   }, [isAuthenticated, role, navigate]);
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate('/admin/login');
   };
 
   if (isChecking) {

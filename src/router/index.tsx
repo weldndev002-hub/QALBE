@@ -6,6 +6,7 @@ import MembershipPage from '../pages/MembershipPage';
 import LoginPage from '../pages/LoginPage';
 import RegisterPage from '../pages/RegisterPage';
 import AdminPage from '../pages/AdminPage';
+import AdminLoginPage from '../pages/AdminLoginPage';
 import AuthCallbackPage from '../pages/AuthCallbackPage';
 import ProtectedRoute from './ProtectedRoute';
 
@@ -20,6 +21,7 @@ export default function AppRouter() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/login" element={<AdminLoginPage />} />
 
         {/* Protected: harus login */}
         <Route element={<ProtectedRoute />}>
