@@ -10,6 +10,7 @@ export type UserRole = 'user' | 'admin' | 'super_admin';
 
 export interface Profile {
   id: string;
+  email?: string;
   full_name: string | null;
   phone: string | null;
   avatar_url: string | null;
@@ -356,16 +357,21 @@ export async function getMembers(filters?: {
       const { data, error } = await query;
       if (error) throw error;
 
-      return (data || []).map((p: any) => ({
-        ...p,
-        role: p.user_roles?.[0]?.role || 'user',
-        membership: p.user_memberships?.[0]
-          ? {
-              ...p.user_memberships[0],
-              tier: p.user_memberships[0].membership_tiers,
-            }
-          : undefined,
-      }));
+      return (data || []).map((p: any) => {
+        const roleData = Array.isArray(p.user_roles) ? p.user_roles[0] : p.user_roles;
+        const membData = Array.isArray(p.user_memberships) ? p.user_memberships[0] : p.user_memberships;
+        
+        return {
+          ...p,
+          role: roleData?.role || 'user',
+          membership: membData
+            ? {
+                ...membData,
+                tier: membData.membership_tiers,
+              }
+            : undefined,
+        };
+      });
     };
 
     return await withTimeout(fetchMembers(), 2500);

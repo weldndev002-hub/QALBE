@@ -10,6 +10,9 @@ function App() {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        // Abaikan sesi Supabase reguler jika sedang login sebagai super_admin mock
+        if (useAuthStore.getState().role === 'super_admin') return;
+
         if (session?.user) {
           const dbRole = await getCurrentUserRole(session.user);
           const finalRole = dbRole || currentRole || 'user';
@@ -23,7 +26,10 @@ function App() {
           login(userData, session.access_token, finalRole);
         }
       } else if (event === 'SIGNED_OUT') {
-        logout();
+        // Jangan hapus sesi lokal jika yang login adalah Mock Super Admin
+        if (useAuthStore.getState().role !== 'super_admin') {
+          logout();
+        }
       }
     });
 

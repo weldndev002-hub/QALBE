@@ -418,7 +418,7 @@ function UsersTab() {
                     <tr key={i} className="hover:bg-neutral-50">
                       <td className="px-6 py-4">
                         <div className="font-bold text-neutral-900">{u.full_name || 'Tanpa Nama'}</div>
-                        <div className="text-xs text-neutral-500">{u.id}</div>
+                        <div className="text-xs text-neutral-500">{u.email || u.id}</div>
                       </td>
                       <td className="px-6 py-4">
                         <span className={clsx(

@@ -18,8 +18,10 @@ api.interceptors.response.use(
   (res) => res,
   async (err) => {
     if (err.response?.status === 401) {
-      useAuthStore.getState().logout();
-      window.location.href = '/';
+      if (useAuthStore.getState().role !== 'super_admin') {
+        useAuthStore.getState().logout();
+        window.location.href = '/';
+      }
     }
     return Promise.reject(err);
   }

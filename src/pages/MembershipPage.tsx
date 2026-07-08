@@ -6,7 +6,7 @@ import {
   ShieldCheck, Clock, Tag, Loader2, AlertCircle, PartyPopper
 } from 'lucide-react';
 import { getTiers, MembershipTier } from '../services/adminService';
-import { createPayment, getPaymentMethods, checkPaymentStatus } from '../services/paymentService';
+import { createPayment, checkPaymentStatus } from '../services/paymentService';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
 
@@ -79,40 +79,15 @@ function PackageDetailModal({
 }: {
   pkg: MembershipTier;
   onClose: () => void;
-  onBuy: (pkg: MembershipTier, billing: 'monthly' | 'yearly', paymentMethod: string, phoneNumber?: string) => void;
+  onBuy: (pkg: MembershipTier, billing: 'monthly' | 'yearly') => void;
   loading: boolean;
 }) {
   const [billing, setBilling] = useState<'monthly' | 'yearly'>('monthly');
-  const [paymentMethod, setPaymentMethod] = useState<string>(''); // Kosongkan awal
-  const [availableMethods, setAvailableMethods] = useState<any[]>([]);
-  const [methodsLoading, setMethodsLoading] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState('');
 
   const style = getTierStyle(pkg.level);
   const price = billing === 'monthly' ? pkg.price_monthly : pkg.price_yearly;
   const isFree = pkg.price_monthly === 0;
   const yearlySaving = pkg.price_monthly * 12 - pkg.price_yearly;
-
-  useEffect(() => {
-    if (!isFree && price > 0) {
-      setMethodsLoading(true);
-      getPaymentMethods(price)
-        .then(methods => {
-          // Hanya E-Wallet (OVO, DANA, ShopeePay, LinkAja, QRIS, dll)
-          const allowedWallets = ['SP', 'O1', 'DA', 'SA', 'LF', 'NQ', 'LQ', 'SQ'];
-          const ewalletMethods = methods.filter((m: any) => allowedWallets.includes(m.paymentMethod));
-          
-          setAvailableMethods(ewalletMethods);
-          if (ewalletMethods.length > 0 && !ewalletMethods.find((m: any) => m.paymentMethod === paymentMethod)) {
-            setPaymentMethod(ewalletMethods[0].paymentMethod);
-          } else if (ewalletMethods.length === 0) {
-            setPaymentMethod('O1'); // Fallback default
-          }
-          setMethodsLoading(false);
-        })
-        .catch(() => setMethodsLoading(false));
-    }
-  }, [price, isFree]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4">
@@ -186,71 +161,11 @@ function PackageDetailModal({
           )}
         </div>
 
-        {/* Payment Method Selector */}
-        {!isFree && (
-          <div className="px-6 pb-2">
-            <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2 flex justify-between items-center">
-              <span>Metode Pembayaran</span>
-              {methodsLoading && <Loader2 size={12} className="animate-spin text-neutral-400" />}
-            </p>
-            {methodsLoading ? (
-              <div className="w-full bg-neutral-100 animate-pulse text-transparent text-sm rounded-xl px-4 py-2.5">
-                Memuat metode...
-              </div>
-            ) : availableMethods.length > 0 ? (
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                disabled={loading || methodsLoading}
-                className="w-full bg-neutral-50 border border-neutral-200 text-neutral-700 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#7e3188]/30 transition-all appearance-none"
-              >
-                {availableMethods.map((method, idx) => (
-                  <option key={idx} value={method.paymentMethod}>
-                    {method.paymentName}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                disabled={loading}
-                className="w-full bg-neutral-50 border border-neutral-200 text-neutral-700 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#7e3188]/30 transition-all"
-              >
-                <optgroup label="E-Wallet & QRIS">
-                  <option value="O1">OVO</option>
-                  <option value="DA">DANA</option>
-                  <option value="SP">ShopeePay</option>
-                  <option value="SA">ShopeePay App</option>
-                  <option value="LF">LinkAja</option>
-                  <option value="NQ">QRIS</option>
-                </optgroup>
-              </select>
-            )}
-            
-            {(paymentMethod === 'O1' || paymentMethod === 'LF') && !isFree && !methodsLoading && (
-              <div className="mt-3">
-                <label className="text-xs font-bold text-neutral-500 mb-1 block">
-                  Nomor HP (OVO / LinkAja)
-                </label>
-                <input
-                  type="tel"
-                  placeholder="Contoh: 081234567890"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
-                  disabled={loading}
-                  className="w-full bg-neutral-50 border border-neutral-200 text-neutral-700 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#7e3188]/30 transition-all"
-                />
-              </div>
-            )}
-          </div>
-        )}
-
         {/* CTA */}
         <div className="p-6 pt-2">
           <button
-            onClick={() => onBuy(pkg, billing, isFree ? '' : paymentMethod, phoneNumber)}
-            disabled={loading || methodsLoading || ((paymentMethod === 'O1' || paymentMethod === 'LF') && phoneNumber.length < 9)}
+            onClick={() => onBuy(pkg, billing)}
+            disabled={loading}
             className="w-full bg-[#7e3188] hover:bg-[#682870] disabled:opacity-70 text-white py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#7e3188]/20"
           >
             {loading ? (
@@ -456,7 +371,7 @@ export default function MembershipPage() {
     });
   }, [user?.id]);
 
-  const handleBuy = async (pkg: MembershipTier, billing: 'monthly' | 'yearly', paymentMethod: string, phoneNumber?: string) => {
+  const handleBuy = async (pkg: MembershipTier, billing: 'monthly' | 'yearly') => {
     const price = billing === 'monthly' ? pkg.price_monthly : pkg.price_yearly;
 
     if (price === 0) {
@@ -482,8 +397,7 @@ export default function MembershipPage() {
         email: user.email,
         customerName: user.user_metadata?.full_name || user.email.split('@')[0],
         userId: user.id,
-        paymentMethod: paymentMethod || 'O1',
-        phoneNumber,
+        paymentMethod: '', // Not needed for Duitku POP
       });
 
       // Redirect ke halaman pembayaran Duitku
