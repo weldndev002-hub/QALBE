@@ -120,26 +120,11 @@ const DEFAULT_MOCK_TIERS: MembershipTier[] = [
   { id: 4, name: 'Premium', slug: 'premium', level: 3, description: 'Paket terlengkap dengan semua fitur eksklusif Qalbie', features: ['Semua Fitur Pro', 'Sesi Konsultasi 1-on-1', 'Prioritas Dukungan', 'Akses Konten Eksklusif'], price_monthly: 99000, price_yearly: 990000, is_active: true, created_at: new Date().toISOString() }
 ];
 
-const DEFAULT_MOCK_PROFILES: Profile[] = [
-  { id: 'usr-1', full_name: 'Nabila Zahra', phone: '08123456789', avatar_url: null, bio: 'Student', timezone: 'Asia/Jakarta', language: 'id', created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date().toISOString() },
-  { id: 'usr-2', full_name: 'Aisyah Humaira', phone: '08987654321', avatar_url: null, bio: 'Designer', timezone: 'Asia/Jakarta', language: 'id', created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date().toISOString() },
-  { id: 'usr-3', full_name: 'Putri Kusuma', phone: '08555123456', avatar_url: null, bio: 'Writer', timezone: 'Asia/Jakarta', language: 'id', created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date().toISOString() },
-  { id: 'usr-4', full_name: 'Fatimah Az-Zahra', phone: '08111222333', avatar_url: null, bio: 'Teacher', timezone: 'Asia/Jakarta', language: 'id', created_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date().toISOString() }
-];
+const DEFAULT_MOCK_PROFILES: Profile[] = [];
 
-const DEFAULT_MOCK_MEMBERSHIPS: UserMembership[] = [
-  { id: 'memb-1', user_id: 'usr-1', tier_id: 4, status: 'active', started_at: new Date().toISOString(), expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), grace_until: null, notes: 'Initial setup', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'memb-2', user_id: 'usr-2', tier_id: 2, status: 'active', started_at: new Date().toISOString(), expires_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), grace_until: null, notes: 'Promo', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'memb-3', user_id: 'usr-3', tier_id: 1, status: 'active', started_at: new Date().toISOString(), expires_at: null, grace_until: null, notes: 'Free Tier default', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'memb-4', user_id: 'usr-4', tier_id: 3, status: 'expired', started_at: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(), expires_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), grace_until: null, notes: 'Expired', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
-];
+const DEFAULT_MOCK_MEMBERSHIPS: UserMembership[] = [];
 
-const DEFAULT_MOCK_ROLES = [
-  { user_id: 'usr-1', role: 'user' },
-  { user_id: 'usr-2', role: 'user' },
-  { user_id: 'usr-3', role: 'user' },
-  { user_id: 'usr-4', role: 'user' }
-];
+const DEFAULT_MOCK_ROLES: any[] = [];
 
 const DEFAULT_MOCK_FEATURES: Feature[] = [
   { id: 1, key: 'audio_therapy_premium', label: 'Akses Audio Terapi Premium', description: 'Akses penuh ke semua audio terapi berbayar', category: 'access', input_type: 'toggle', sort_order: 1, is_active: true, created_at: new Date().toISOString() },
@@ -403,12 +388,12 @@ export async function getMembers(filters?: {
         memberships.push({
           id: 'memb-self',
           user_id: user.id,
-          tier_id: 4,
+          tier_id: 1,
           status: 'active',
           started_at: new Date().toISOString(),
           expires_at: null,
           grace_until: null,
-          notes: 'System Assigned Admin Tier',
+          notes: 'System Assigned Free Tier',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
