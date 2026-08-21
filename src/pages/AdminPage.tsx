@@ -7,6 +7,7 @@ import clsx from 'clsx';
 import * as adminService from '../services/adminService';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
+import RichTextEditor from '../components/RichTextEditor';
 
 const swalCustom = Swal.mixin({
   customClass: {
@@ -1508,11 +1509,9 @@ function ContentsTab() {
 
                 <div>
                   <label className="block text-xs font-bold text-neutral-700 mb-1.5 uppercase tracking-wider pl-1">Isi Teks / Deskripsi</label>
-                  <textarea 
+                  <RichTextEditor
                     value={editingContent.body || ''}
-                    onChange={(e) => setEditingContent({ ...editingContent, body: e.target.value })}
-                    placeholder="Tuliskan isi konten..."
-                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-sm focus:outline-none focus:border-purple-500 focus:bg-white transition-all duration-200 h-32"
+                    onChange={(html) => setEditingContent({ ...editingContent, body: html })}
                   />
                 </div>
 
